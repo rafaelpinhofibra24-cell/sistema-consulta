@@ -1,0 +1,720 @@
+{% extends "base.html" %}
+
+{% block title %}Apresentação Duplado{% endblock %}
+
+{% block header %}
+<div class="d-flex align-items-center">
+    <i class="bi bi-people-fill me-2" style="font-size: 1.5rem; color: #0d6efd;"></i>
+    <span>Apresentação Duplado</span>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<!-- Bootstrap Icons -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+<!-- DataTables CSS -->
+<link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+<link href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap5.min.css" rel="stylesheet">
+<style>
+    /* Estilos para o botão de visualização na tabela */
+    .btn-visualizar {
+        min-width: 24px;
+        height: 24px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        z-index: 1;
+        border: 1px solid #0d6efd;
+        border-radius: 4px;
+        background-color: #fff;
+        text-decoration: none;
+        line-height: 1;
+        color: #0d6efd;
+    }
+    .btn-visualizar:hover {
+        background-color: #0d6efd;
+        text-decoration: none;
+        color: #fff;
+    }
+    /* Garantir que a coluna de ações tenha largura fixa */
+    th.text-center, td.text-center {
+        width: 80px;
+    }
+    .data-duplado {
+        background-color: #f8f9fa;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+        border-left: 4px solid #0d6efd;
+    }
+    .data-passada {
+        opacity: 0.8;
+    }
+    .hoje {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+    }
+    .table th {
+        white-space: nowrap;
+        font-size: 0.8rem;
+    }
+    .table td {
+        font-size: 0.85rem;
+    }
+    .btn-exportar {
+        margin-left: 10px;
+    }
+    .filtros {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    .filtro-item {
+        margin-bottom: 10px;
+    }
+    .filtro-titulo {
+        font-weight: bold;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 5px;
+    }
+    .data-destaque {
+        font-weight: bold;
+        color: #0d6efd;
+    }
+    .badge-hoje {
+        background-color: #ffc107 !important;
+        color: #000 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Apresentação Duplado</h5>
+        <small>Clique nos cabeçalhos das colunas para classificar (ordem crescente/decrescente)</small>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="filtros">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="filtro-titulo">Filtrar por Período</div>
+                            <select class="form-select form-select-sm" id="filtroPeriodo">
+                                <option value="todos">Todos os períodos</option>
+                                <option value="hoje">Hoje</option>
+                                <option value="semana">Esta semana</option>
+                                <option value="proximos_7">Próximos 7 dias</option>
+                                <option value="proximos_30">Próximos 30 dias</option>
+                                <option value="passados">Histórico</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="filtro-titulo">Filtrar por Mês/Ano</div>
+                            <input type="month" class="form-control form-control-sm" id="filtroMesAno">
+                        </div>
+                        <div class="col-md-4">
+                            <div class="filtro-titulo">Pesquisar</div>
+                            <input type="text" class="form-control form-control-sm" id="pesquisaGeral" 
+                                   placeholder="Digite para pesquisar em todas as colunas...">
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button class="btn btn-sm btn-primary w-100" onclick="aplicarFiltros()">
+                                <i class="bi bi-funnel"></i> Aplicar Filtros
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="alertasAdmin" class="mb-3"></div>
+        {% if current_user.access_type == 'admin' %}
+        <div class="text-end mb-3">
+            <button class="btn btn-sm btn-outline-danger" onclick="limparAlertas()">
+                <i class="bi bi-arrow-clockwise"></i> Reiniciar Alertas
+            </button>
+        </div>
+        {% endif %}
+
+        <div id="secaoFuturos">
+            <h5 class="card-title mb-3">Próximas Apresentações de Duplado</h5>
+            
+            {% if duplados_futuros|length == 0 %}
+                <div class="alert alert-info">Nenhuma apresentação de duplado agendada.</div>
+            {% endif %}
+            
+            {% for duplado in duplados_futuros %}
+            <div class="data-duplado mb-4 {% if duplado.data == hoje %}hoje{% endif %}" 
+                 data-data="{{ duplado.data.strftime('%Y-%m-%d') }}">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">
+                        <span class="data-destaque" translate="no">{{ duplado.data.strftime('%d/%m/%Y') }} - {{ ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'][duplado.data.weekday()] }}</span>
+                        <span class="badge {% if duplado.data == hoje %}bg-warning text-dark{% else %}bg-primary{% endif %} ms-2">
+                            {{ duplado.colaboradores|length }} colaborador(es)
+                        </span>
+                        {% if duplado.data == hoje %}
+                            <span class="badge bg-warning text-dark">Hoje</span>
+                        {% endif %}
+                    </h6>
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary" 
+                                onclick="selecionarTodos('{{ duplado.data.strftime('%Y-%m-%d') }}')">
+                            <i class="bi bi-check2-square"></i> Selecionar Todos
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" 
+                                onclick="exportarParaExcel('{{ duplado.data.strftime('%Y-%m-%d') }}')">
+                            <i class="bi bi-download"></i> Exportar
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover table-striped">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 30px;">
+                                    <input type="checkbox" class="form-check-input" 
+                                           onchange="selecionarTodosLinhas('{{ duplado.data.strftime('%Y-%m-%d') }}', this.checked)">
+                                </th>
+                                <th>Matrícula</th>
+                                <th>Ações</th>
+                                <th>Nome Completo</th>
+                                <th>Função</th>
+                                <th>Tipo</th>
+                                <th>Data Admissão</th>
+                                <th>Turma</th>
+                                <th class="text-center">Período Duplado</th>
+                                <th class="text-center">Local de Apresentação</th>
+                                <th>Gerente</th>
+                                <th>Gerente Corporativo</th>
+                                <th>Data Operação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for colab in duplado.colaboradores %}
+                            <tr data-id="{{ colab.id }}" data-data="{{ duplado.data.strftime('%Y-%m-%d') }}">
+                                <td>
+                                    <input type="checkbox" class="form-check-input linha-selecionada" 
+                                           value="{{ colab.id }}" 
+                                           data-data="{{ duplado.data.strftime('%Y-%m-%d') }}">
+                                </td>
+                                <td>{{ colab.registration }}</td>
+                                <td class="nowrap">
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for_brand('view_employee', brand=brand, employee_id=colab.id, referrer='apresentacao_duplado') }}" class="btn btn-sm btn-outline-primary p-0 px-1 me-1" title="Visualizar" style="font-size: 0.7rem; line-height: 1.2;">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                                <td>{{ colab.full_name }}</td>
+                                <td>{{ colab.role or '-' }}</td>
+                                <td>{{ colab.employee_type or '-' }}</td>
+                                <td>{{ colab.admission_date.strftime('%d/%m/%Y') if colab.admission_date else '-' }}</td>
+                                <td>{{ colab.team or '-' }}</td>
+                                <td class="text-center fw-bold">
+                                    {% if colab.double_start %}
+                                        {{ colab.double_start.strftime('%d/%m/%Y') }}
+                                        {% if colab.double_end %}
+                                            a {{ colab.double_end.strftime('%d/%m/%Y') }}
+                                        {% endif %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">Informações por e-mail</td>
+                                <td>{{ colab.manager or '-' }}</td>
+                                <td>{{ colab.corporate_manager or '-' }}</td>
+                                <td>{{ colab.field_operation_date.strftime('%d/%m/%Y') if colab.field_operation_date else '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div id="secaoPassados" class="mt-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="card-title mb-0">Histórico de Apresentações de Duplado</h5>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="toggleHistorico" checked>
+                    <label class="form-check-label" for="toggleHistorico">Mostrar histórico</label>
+                </div>
+            </div>
+            
+            <div id="conteudoHistorico">
+                {% if duplados_passados|length == 0 %}
+                    <div class="alert alert-info">Nenhuma apresentação de duplado no histórico.</div>
+                {% endif %}
+                
+                {% for duplado in duplados_passados %}
+                <div class="data-duplado data-passada mb-4" 
+                     data-data="{{ duplado.data.strftime('%Y-%m-%d') }}">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">
+                            <span class="text-muted" translate="no">{{ duplado.data.strftime('%d/%m/%Y') }} - {{ ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'][duplado.data.weekday()] }}</span>
+                            <span class="badge bg-secondary ms-2">
+                                {{ duplado.colaboradores|length }} colaborador(es)
+                            </span>
+                        </h6>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary" 
+                                    onclick="selecionarTodos('{{ duplado.data.strftime('%Y-%m-%d') }}')">
+                                <i class="bi bi-check2-square"></i> Selecionar Todos
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" 
+                                    onclick="exportarParaExcel('{{ duplado.data.strftime('%Y-%m-%d') }}')">
+                                <i class="bi bi-download"></i> Exportar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover table-striped">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 30px;">
+                                        <input type="checkbox" class="form-check-input" 
+                                               onchange="selecionarTodosLinhas('{{ duplado.data.strftime('%Y-%m-%d') }}', this.checked)">
+                                    </th>
+                                    <th>Matrícula</th>
+                                    <th>Ações</th>
+                                    <th>Nome Completo</th>
+                                    <th>Função</th>
+                                    <th>Tipo</th>
+                                    <th>Data Admissão</th>
+                                    <th>Turma</th>
+                                    <th class="text-center">Período Duplado</th>
+                                    <th class="text-center">Local de Apresentação</th>
+                                    <th>Gerente</th>
+                                    <th>Gerente Corporativo</th>
+                                    <th>Data Operação</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for colab in duplado.colaboradores %}
+                                <tr data-id="{{ colab.id }}" data-data="{{ duplado.data.strftime('%Y-%m-%d') }}">
+                                    <td>
+                                        <input type="checkbox" class="form-check-input linha-selecionada" 
+                                               value="{{ colab.id }}" 
+                                               data-data="{{ duplado.data.strftime('%Y-%m-%d') }}">
+                                    </td>
+                                    <td>{{ colab.registration }}</td>
+                                    <td>
+                                        <a href="{{ url_for_brand('view_employee', brand=brand, employee_id=colab.id, referrer='apresentacao_duplado') }}" 
+                                           class="btn-visualizar"
+                                           title="Visualizar Colaborador"
+                                           target="_blank">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                    <td>{{ colab.full_name }}</td>
+                                    <td>{{ colab.role or '-' }}</td>
+                                    <td>{{ colab.employee_type or '-' }}</td>
+                                    <td>{{ colab.admission_date.strftime('%d/%m/%Y') if colab.admission_date else '-' }}</td>
+                                    <td>{{ colab.team or '-' }}</td>
+                                    <td class="text-center fw-bold">
+                                        {% if colab.double_start %}
+                                            {{ colab.double_start.strftime('%d/%m/%Y') }}
+                                            {% if colab.double_end %}
+                                                a {{ colab.double_end.strftime('%d/%m/%Y') }}
+                                            {% endif %}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">Informações por e-mail</td>
+                                    <td>{{ colab.manager or '-' }}</td>
+                                    <td>{{ colab.corporate_manager or '-' }}</td>
+                                    <td>{{ colab.field_operation_date.strftime('%d/%m/%Y') if colab.field_operation_date else '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para visualização dos detalhes do colaborador -->
+<div class="modal fade" id="modalDetalhesColaborador" tabindex="-1" aria-labelledby="modalDetalhesColaboradorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="modalDetalhesColaboradorLabel">Detalhes do Colaborador</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="container-fluid">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Informações Pessoais</h6>
+                            <div class="mb-2"><strong>Nome:</strong> <span id="colabNome"></span></div>
+                            <div class="mb-2"><strong>Matrícula:</strong> <span id="colabMatricula"></span></div>
+                            <div class="mb-2"><strong>CPF:</strong> <span id="colabCpf"></span></div>
+                            <div class="mb-2"><strong>Data de Nascimento:</strong> <span id="colabDataNascimento"></span></div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Informações Profissionais</h6>
+                            <div class="mb-2"><strong>Função:</strong> <span id="colabFuncao"></span></div>
+                            <div class="mb-2"><strong>Tipo de Colaborador:</strong> <span id="colabTipo"></span></div>
+                            <div class="mb-2"><strong>Data de Admissão:</strong> <span id="colabAdmissao"></span></div>
+                            <div class="mb-2"><strong>Turma:</strong> <span id="colabTurma"></span></div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Informações de Duplado</h6>
+                            <div class="mb-2"><strong>Período do Duplado:</strong> <span id="colabPeriodoDuplado"></span></div>
+                            <div class="mb-2"><strong>Local de Apresentação:</strong> <span>Informações por e-mail</span></div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Responsáveis</h6>
+                            <div class="mb-2"><strong>Gerente:</strong> <span id="colabGerente"></span></div>
+                            <div class="mb-2"><strong>Gerente Corporativo:</strong> <span id="colabGerenteCorp"></span></div>
+                            <div class="mb-2"><strong>Data da Operação:</strong> <span id="colabDataOperacao"></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" id="btnEditarColaborador">
+                    <i class="bi bi-pencil"></i> Editar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
+
+<!-- Custom sorting for date columns -->
+<script>
+// Custom sorting for date in format dd/mm/yyyy
+$.fn.dataTable.moment('DD/MM/YYYY');
+
+// Custom type detection for date columns
+$.fn.dataTable.ext.type.detect.unshift(function (data) {
+    // Check for dates in format dd/mm/yyyy or dd/mm/yyyy - Day
+    if (typeof data !== 'string') {
+        return null;
+    }
+    
+    // Check for dates like "01/01/2023 - Segunda-feira"
+    var dateParts = data.trim().split(' ')[0].split('/');
+    if (dateParts.length === 3 && dateParts[0].length === 2 && dateParts[1].length === 2 && dateParts[2].length === 4) {
+        // Return a formatted date string that can be sorted
+        return moment(data.split(' ')[0], 'DD/MM/YYYY').format('YYYYMMDD');
+    }
+    
+    return null;
+});
+</script>
+
+<script>
+// Variável global para controle de alertas já exibidos
+let alertasExibidos = [];
+
+// Função para selecionar todos os itens de uma data
+function selecionarTodos(data) {
+    const checkboxes = document.querySelectorAll(`.linha-selecionada[data-data="${data}"]`);
+    const todosSelecionados = Array.from(checkboxes).every(checkbox => checkbox.checked);
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = !todosSelecionados;
+    });
+}
+
+// Função para selecionar todas as linhas de uma seção
+function selecionarTodosLinhas(data, checked) {
+    const checkboxes = document.querySelectorAll(`.linha-selecionada[data-data="${data}"]`);
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = checked;
+    });
+}
+
+// Função para aplicar filtros
+function aplicarFiltros() {
+    const periodo = document.getElementById('filtroPeriodo').value;
+    const mesAno = document.getElementById('filtroMesAno').value;
+    const pesquisa = document.getElementById('pesquisaGeral').value.toLowerCase();
+    
+    // Lógica de filtro por período
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    const datas = document.querySelectorAll('.data-duplado');
+    datas.forEach(dataElement => {
+        const dataStr = dataElement.getAttribute('data-data');
+        const data = new Date(dataStr);
+        data.setHours(0, 0, 0, 0);
+        
+        let mostrar = true;
+        
+        // Aplicar filtro de período
+        if (periodo !== 'todos') {
+            const diffDias = Math.floor((data - hoje) / (1000 * 60 * 60 * 24));
+            
+            switch (periodo) {
+                case 'hoje':
+                    mostrar = diffDias === 0;
+                    break;
+                case 'semana':
+                    const diaSemana = hoje.getDay();
+                    const inicioSemana = new Date(hoje);
+                    inicioSemana.setDate(hoje.getDate() - diaSemana);
+                    const fimSemana = new Date(hoje);
+                    fimSemana.setDate(hoje.getDate() + (6 - diaSemana));
+                    mostrar = data >= inicioSemana && data <= fimSemana;
+                    break;
+                case 'proximos_7':
+                    const fim7dias = new Date(hoje);
+                    fim7dias.setDate(hoje.getDate() + 7);
+                    mostrar = data >= hoje && data <= fim7dias;
+                    break;
+                case 'proximos_30':
+                    const fim30dias = new Date(hoje);
+                    fim30dias.setDate(hoje.getDate() + 30);
+                    mostrar = data >= hoje && data <= fim30dias;
+                    break;
+                case 'passados':
+                    mostrar = data < hoje;
+                    break;
+            }
+        }
+        
+        // Aplicar filtro de mês/ano
+        if (mesAno && mostrar) {
+            const [ano, mes] = mesAno.split('-').map(Number);
+            mostrar = data.getFullYear() === ano && (data.getMonth() + 1) === mes;
+        }
+        
+        // Aplicar filtro de pesquisa
+        if (pesquisa && mostrar) {
+            const linhas = dataElement.querySelectorAll('tbody tr');
+            let temResultado = false;
+            
+            linhas.forEach(linha => {
+                const textoLinha = linha.textContent.toLowerCase();
+                if (textoLinha.includes(pesquisa)) {
+                    linha.style.display = '';
+                    temResultado = true;
+                } else {
+                    linha.style.display = 'none';
+                }
+            });
+            
+            mostrar = temResultado;
+        }
+        
+        // Mostrar/ocultar seção de acordo com os filtros
+        dataElement.style.display = mostrar ? 'block' : 'none';
+    });
+}
+
+// Função para exportar para Excel
+function exportarParaExcel(data) {
+    let url = '{{ url_for("exportar_duplado") }}';
+    
+    if (data) {
+        url += `?data=${data}`;
+    } else {
+        // Se não houver data específica, exportar itens selecionados
+        const checkboxes = document.querySelectorAll('.linha-selecionada:checked');
+        const ids = Array.from(checkboxes).map(cb => cb.value).join(',');
+        
+        if (ids) {
+            url += `?ids=${ids}`;
+        } else {
+            alert('Selecione pelo menos um colaborador para exportar.');
+            return;
+        }
+    }
+    
+    window.location.href = url;
+}
+
+// Função para verificar e exibir alertas para o administrador
+function verificarAlertasAdmin() {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    // Verificar se há datas de duplado próximas (próximos 2 dias)
+    const datasDuplado = document.querySelectorAll('.data-duplado[data-data]');
+    const alertasDiv = document.getElementById('alertasAdmin');
+    
+    if (!alertasDiv) return;
+    
+    alertasDiv.innerHTML = '';
+    
+    const alertasLidos = JSON.parse(localStorage.getItem('alertasLidos') || '[]');
+    
+    datasDuplado.forEach(dataEl => {
+        const dataStr = dataEl.getAttribute('data-data');
+        const data = new Date(dataStr);
+        data.setHours(0, 0, 0, 0);
+        
+        const diffDias = Math.floor((data - hoje) / (1000 * 60 * 60 * 24));
+        
+        if (diffDias >= 0 && diffDias <= 2) {
+            const dataFormatada = data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const alertaId = `alerta_${dataStr}`;
+            
+            if (!alertasLidos.includes(dataStr) && !alertasExibidos.includes(alertaId)) {
+                const alerta = document.createElement('div');
+                alerta.className = 'alert alert-warning alert-dismissible fade show';
+                alerta.role = 'alert';
+                alerta.id = alertaId;
+                
+                const mensagem = diffDias === 0 
+                    ? `Hoje é dia de apresentação de duplado! (${dataFormatada})`
+                    : `Falta(m) ${diffDias} dia(s) para a apresentação de duplado do dia ${dataFormatada}`;
+                
+                alerta.innerHTML = `
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    ${mensagem}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar" 
+                            onclick="marcarComoLido('${dataStr}', this)"></button>
+                `;
+                
+                alertasDiv.appendChild(alerta);
+                alertasExibidos.push(alertaId);
+                
+                // Rolagem suave para o alerta
+                alerta.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+    });
+}
+
+// Função para ir para uma data específica
+function irParaData(dataStr) {
+    const elemento = document.querySelector(`[data-data="${dataStr}"]`);
+    if (elemento) {
+        elemento.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        elemento.classList.add('pulse-animation');
+        
+        // Remover a classe de animação após a animação terminar
+        setTimeout(() => {
+            elemento.classList.remove('pulse-animation');
+        }, 3000);
+    }
+}
+
+// Função para marcar um alerta como lido
+function marcarComoLido(dataStr, botao = null) {
+    let alertasLidos = JSON.parse(localStorage.getItem('alertasLidos') || '[]');
+    
+    if (!alertasLidos.includes(dataStr)) {
+        alertasLidos.push(dataStr);
+        localStorage.setItem('alertasLidos', JSON.stringify(alertasLidos));
+    }
+    
+    if (botao) {
+        const alerta = botao.closest('.alert');
+        if (alerta) {
+            alerta.remove();
+        }
+    }
+}
+
+// Função para carregar alertas já lidos
+function carregarAlertasLidos() {
+    return JSON.parse(localStorage.getItem('alertasLidos') || '[]');
+}
+
+// Função para limpar todos os alertas
+function limparAlertas() {
+    if (confirm('Tem certeza que deseja limpar todos os alertas?')) {
+        localStorage.removeItem('alertasLidos');
+        window.location.reload();
+    }
+}
+
+// A função visualizarColaborador foi removida pois agora usamos links diretos
+
+// Inicialização quando o documento estiver pronto
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar DataTables em todas as tabelas
+    $('.table').each(function() {
+        $(this).DataTable({
+            "pageLength": 50,
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json"
+            },
+            "columnDefs": [
+                { "orderable": false, "targets": [0, 2] }, // Desabilitar ordenação para checkboxes e coluna de ações
+                { "type": "date-eu", "targets": '_all' } // Aplicar ordenação de data a todas as colunas
+            ],
+            "dom": 'Bfrtip',
+            "buttons": [
+                'copy', 'csv', 'excel', 'pdf', 'print'
+            ]
+        });
+    });
+    
+    // Carregar alertas já lidos
+    carregarAlertasLidos();
+    // Carregar alertas já lidos
+    carregarAlertasLidos();
+    
+    // Verificar e exibir alertas para o administrador
+    verificarAlertasAdmin();
+    
+    // Configurar evento de alteração do toggle de histórico
+    const toggleHistorico = document.getElementById('toggleHistorico');
+    if (toggleHistorico) {
+        const conteudoHistorico = document.getElementById('conteudoHistorico');
+        
+        toggleHistorico.addEventListener('change', function() {
+            if (conteudoHistorico) {
+                conteudoHistorico.style.display = this.checked ? 'block' : 'none';
+            }
+        });
+    }
+    
+    // Configurar evento de clique no botão de editar do modal
+    const btnEditarColaborador = document.getElementById('btnEditarColaborador');
+    if (btnEditarColaborador) {
+        btnEditarColaborador.addEventListener('click', function() {
+            const colabId = this.getAttribute('data-colab-id');
+            if (colabId) {
+                window.location.href = `/editar_colaborador/${colabId}?referrer=apresentacao_duplado`;
+            }
+        });
+    }
+    
+    // Adicionar estilos dinâmicos
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(13, 110, 253, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); }
+        }
+        .data-duplado {
+            transition: all 0.3s ease;
+        }
+    `;
+    document.head.appendChild(style);
+});
+</script>
+{% endblock %}

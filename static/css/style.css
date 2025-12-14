@@ -1,0 +1,88 @@
+/* Ajustes para alinhamento dos botões na caixa de SLA/alerta */
+#sla_alert .d-flex {
+  align-items: center; /* garante alinhamento vertical */
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+#sla_alert .d-flex form,
+#sla_alert .d-flex > button {
+  margin: 0;               /* remove margens indesejadas */
+}
+
+#sla_alert .btn {
+  min-height: 38px;        /* mesma altura visível para todos os botões */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 0.85rem;
+  padding-right: 0.85rem;
+  white-space: nowrap;
+}
+
+/* Se quiser espaçar a mensagem do topo do alert dos botões */
+#sla_alert > div:first-child {
+  margin-bottom: .5rem;
+}
+
+/* Pequenos ajustes para o formulário de envio de mensagem */
+.user-action-area .btn, #userMessageSend, #userMessageCancel {
+  min-height: 38px;
+}
+
+/* Garante que a textarea e os botões do chat alinhem corretamente */
+.d-flex[style*="align-items:stretch"] { align-items: stretch; }
+
+/* Mobile action bar: show only on small screens to avoid duplicating buttons on desktop */
+.mobile-action-bar { display: none; }
+
+@media (max-width: 767.98px) {
+  .mobile-action-bar {
+    display: flex !important;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 0.5rem;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.95);
+    box-shadow: 0 -4px 8px rgba(0,0,0,0.08);
+    justify-content: center;
+    z-index: 1080; /* above most elements but below modals */
+  }
+  .mobile-action-bar .btn { flex: 1 1 auto; margin: 0 0.25rem; }
+}
+
+/* Fab (floating action button) safe defaults */
+.fab { position: fixed; right: 1rem; bottom: 1rem; z-index: 1050; text-decoration: none; }
+
+/* Force user action buttons to align: ensure their form containers are inline-flex
+   and buttons share the same sizing so they appear aligned across browsers */
+.user-action-area .mt-2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.user-action-area .mt-2 form {
+  display: inline-flex;
+  align-items: center;
+  margin: 0; /* normalize spacing between form elements */
+}
+.user-action-area .mt-2 form button,
+.user-action-area .mt-2 form .btn {
+  min-height: 40px !important;
+  padding-left: 0.85rem !important;
+  padding-right: 0.85rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  vertical-align: middle !important;
+}
+
+/* If one button needs to be visually smaller, use a modifier; otherwise keep uniform */
+.user-action-area .mt-2 .btn-sm {
+  min-height: 36px !important;
+}
+
+

@@ -1,0 +1,781 @@
+{% extends "base.html" %}
+
+{% block title %}Gestão de Carregamento{% endblock %}
+
+{% block header %}
+<div class="d-flex align-items-center">
+    <i class="bi bi-people-fill me-2" style="font-size: 1.5rem; color: #0d6efd;"></i>
+    <span>Gestão de Carregamento</span>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<!-- Bootstrap Icons -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+<!-- DataTables CSS -->
+<link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+<link href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap5.min.css" rel="stylesheet">
+<style>
+    /* Estilos para o botão de visualização na tabela */
+    .btn-visualizar {
+        min-width: 24px;
+        height: 24px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        z-index: 1;
+        border: 1px solid #0d6efd;
+        border-radius: 4px;
+        background-color: #fff;
+        text-decoration: none;
+        line-height: 1;
+        color: #0d6efd;
+    }
+    .btn-visualizar:hover {
+        background-color: #0d6efd;
+        text-decoration: none;
+        color: #fff;
+    }
+    /* Garantir que a coluna de ações tenha largura fixa */
+    th.text-center, td.text-center {
+        width: 80px;
+    }
+    .data-carregamento {
+        background-color: #f8f9fa;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+        border-left: 4px solid #0d6efd;
+    }
+    .data-passada {
+        opacity: 0.8;
+    }
+    .hoje {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+    }
+    .table th {
+        white-space: nowrap;
+        font-size: 0.8rem;
+    }
+    .table td {
+        font-size: 0.85rem;
+    }
+    .btn-exportar {
+        margin-left: 10px;
+    }
+    .filtros {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    .filtro-item {
+        margin-bottom: 10px;
+    }
+    .filtro-titulo {
+        font-weight: bold;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 5px;
+    }
+    .data-destaque {
+        font-weight: bold;
+        color: #0d6efd;
+    }
+    .badge-hoje {
+        background-color: #ffc107 !important;
+        color: #000 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Gestão de Carregamento</h5>
+        <small>Clique nos cabeçalhos das colunas para classificar (ordem crescente/decrescente)</small>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="filtros">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="filtro-titulo">Filtrar por Período</div>
+                            <select class="form-select form-select-sm" id="filtroPeriodo">
+                                <option value="todos">Todos os períodos</option>
+                                <option value="hoje">Hoje</option>
+                                <option value="semana">Esta semana</option>
+                                <option value="proximos_7">Próximos 7 dias</option>
+                                <option value="proximos_30">Próximos 30 dias</option>
+                                <option value="passados">Histórico</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="filtro-titulo">Filtrar por Mês/Ano</div>
+                            <input type="month" class="form-control form-control-sm" id="filtroMesAno">
+                        </div>
+                        <div class="col-md-4">
+                            <div class="filtro-titulo">Pesquisar</div>
+                            <input type="text" class="form-control form-control-sm" id="pesquisaGeral" 
+                                   placeholder="Digite para pesquisar em todas as colunas...">
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button class="btn btn-sm btn-primary w-100" onclick="aplicarFiltros()">
+                                <i class="bi bi-funnel"></i> Aplicar Filtros
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="alertasAdmin" class="mb-3"></div>
+        {% if current_user.access_type == 'admin' %}
+        <div class="text-end mb-3">
+            <button class="btn btn-sm btn-outline-danger" onclick="limparAlertas()">
+                <i class="bi bi-arrow-clockwise"></i> Reiniciar Alertas
+            </button>
+        </div>
+        {% endif %}
+
+        <div id="secaoFuturos">
+            <h5 class="card-title mb-3">Próximos Carregamentos</h5>
+            
+            {% if carregamentos_futuros|length == 0 %}
+                <div class="alert alert-info">Nenhum carregamento futuro agendado.</div>
+            {% endif %}
+            
+            {% for carregamento in carregamentos_futuros %}
+            <div class="data-carregamento mb-4 {% if carregamento.data == hoje %}hoje{% endif %}" 
+                 data-data="{{ carregamento.data.strftime('%Y-%m-%d') }}">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">
+                        <span class="data-destaque" translate="no">{{ carregamento.data.strftime('%d/%m/%Y') }} - {{ ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'][carregamento.data.weekday()] }}</span>
+                        <span class="badge {% if carregamento.data == hoje %}bg-warning text-dark{% else %}bg-primary{% endif %} ms-2">
+                            {{ carregamento.colaboradores|length }} colaborador(es)
+                        </span>
+                        {% if carregamento.data == hoje %}
+                            <span class="badge bg-warning text-dark">Hoje</span>
+                        {% endif %}
+                    </h6>
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary" 
+                                onclick="selecionarTodos('{{ carregamento.data.strftime('%Y-%m-%d') }}')">
+                            <i class="bi bi-check2-square"></i> Selecionar Todos
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" 
+                                onclick="exportarParaExcel('{{ carregamento.data.strftime('%Y-%m-%d') }}')">
+                            <i class="bi bi-download"></i> Exportar
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover table-striped">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 30px;">
+                                    <input type="checkbox" class="form-check-input" 
+                                           onchange="selecionarTodosLinhas('{{ carregamento.data.strftime('%Y-%m-%d') }}', this.checked)">
+                                </th>
+                                <th>Matrícula</th>
+                                <th>Ações</th>
+                                <th>Nome Completo</th>
+                                <th>Função</th>
+                                <th>Tipo</th>
+                                <th>Data Admissão</th>
+                                <th>Turma</th>
+                                <th class="text-center">Data Carregamento</th>
+                                <th>Local Frota</th>
+                                <th>Local Almox</th>
+                                <th>Gerente</th>
+                                <th>Gerente Corporativo</th>
+                                <th>Data Operação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for colab in carregamento.colaboradores %}
+                            <tr data-id="{{ colab.id }}" data-data="{{ carregamento.data.strftime('%Y-%m-%d') }}">
+                                <td>
+                                    <input type="checkbox" class="form-check-input linha-selecionada" 
+                                           value="{{ colab.id }}" 
+                                           data-data="{{ carregamento.data.strftime('%Y-%m-%d') }}">
+                                </td>
+                                <td>{{ colab.registration }}</td>
+                                <td>
+                                    <a href="#" class="btn-visualizar" onclick="visualizarColaborador('{{ colab.id }}'); return false;" title="Visualizar detalhes">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                                <td>{{ colab.full_name }}</td>
+                                <td>{{ colab.role or '-' }}</td>
+                                <td>{{ colab.employee_type or '-' }}</td>
+                                <td>{{ colab.admission_date.strftime('%d/%m/%Y') if colab.admission_date else '-' }}</td>
+                                <td>{{ colab.team or '-' }}</td>
+                                <td class="text-center fw-bold">
+                                    {{ colab.loading_date.strftime('%d/%m/%Y') if colab.loading_date else '-' }}
+                                </td>
+                                <td>Informações por e-mail</td>
+                                <td>Informações por e-mail</td>
+                                <td>{{ colab.manager or '-' }}</td>
+                                <td>{{ colab.corporate_manager or '-' }}</td>
+                                <td>{{ colab.field_operation_date.strftime('%d/%m/%Y') if colab.field_operation_date else '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div id="secaoPassados" class="mt-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="card-title mb-0">Histórico de Carregamentos</h5>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="toggleHistorico" checked>
+                    <label class="form-check-label" for="toggleHistorico">Mostrar histórico</label>
+                </div>
+            </div>
+            
+            <div id="conteudoHistorico">
+                {% if carregamentos_passados|length == 0 %}
+                    <div class="alert alert-info">Nenhum carregamento histórico encontrado.</div>
+                {% endif %}
+                
+                {% for carregamento in carregamentos_passados %}
+                <div class="data-carregamento data-passada mb-4" 
+                     data-data="{{ carregamento.data.strftime('%Y-%m-%d') }}">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">
+                            <span class="text-muted" translate="no">{{ carregamento.data.strftime('%d/%m/%Y') }} - {{ ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'][carregamento.data.weekday()] }}</span>
+                            <span class="badge bg-secondary ms-2">
+                                {{ carregamento.colaboradores|length }} colaborador(es)
+                            </span>
+                        </h6>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary" 
+                                    onclick="selecionarTodos('{{ carregamento.data.strftime('%Y-%m-%d') }}')">
+                                <i class="bi bi-check2-square"></i> Selecionar Todos
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" 
+                                    onclick="exportarParaExcel('{{ carregamento.data.strftime('%Y-%m-%d') }}')">
+                                <i class="bi bi-download"></i> Exportar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover table-striped">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 30px;">
+                                        <input type="checkbox" class="form-check-input" 
+                                               onchange="selecionarTodosLinhas('{{ carregamento.data.strftime('%Y-%m-%d') }}', this.checked)">
+                                    </th>
+                                    <th>Matrícula</th>
+                                    <th class="text-center">Ações</th>
+                                    <th class="text-center">Ações</th>
+                                    <th>Nome Completo</th>
+                                    <th>Função</th>
+                                    <th>Tipo</th>
+                                    <th>Data Admissão</th>
+                                    <th>Turma</th>
+                                    <th class="text-center">Data Carregamento</th>
+                                    <th>Local Frota</th>
+                                    <th>Local Almox</th>
+                                    <th>Gerente</th>
+                                    <th>Gerente Corporativo</th>
+                                    <th>Data Operação</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for colab in carregamento.colaboradores %}
+                                <tr data-id="{{ colab.id }}" data-data="{{ carregamento.data.strftime('%Y-%m-%d') }}">
+                                    <td>
+                                        <input type="checkbox" class="form-check-input linha-selecionada" 
+                                               value="{{ colab.id }}" 
+                                               data-data="{{ carregamento.data.strftime('%Y-%m-%d') }}">
+                                    </td>
+                                    <td>{{ colab.registration }}</td>
+                                    <td class="text-center" style="padding: 4px !important; width: 60px;">
+                                        <a href="{{ url_for_brand('view_employee', brand=brand, employee_id=colab.id, referrer='gestao_carregamento') }}" 
+                                           style="display: inline-block; width: 30px; height: 30px; line-height: 30px; text-align: center; border: 1px solid #0d6efd; border-radius: 4px; color: #0d6efd; text-decoration: none;"
+                                           title="Visualizar Colaborador"
+                                           target="_blank"
+                                           onmouseover="this.style.backgroundColor='#0d6efd'; this.style.color='#fff'"
+                                           onmouseout="this.style.backgroundColor='#fff'; this.style.color='#0d6efd'">
+                                            👁️
+                                        </a>
+                                    </td>
+                                    <td class="text-center" style="padding: 4px !important; width: 60px;">
+                                        <a href="{{ url_for_brand('view_employee', brand=brand, employee_id=colab.id, referrer='gestao_carregamento') }}" 
+                                           style="display: inline-block; width: 30px; height: 30px; line-height: 30px; text-align: center; border: 1px solid #0d6efd; border-radius: 4px; color: #0d6efd; text-decoration: none;"
+                                           title="Visualizar Colaborador"
+                                           target="_blank"
+                                           onmouseover="this.style.backgroundColor='#0d6efd'; this.style.color='#fff'"
+                                           onmouseout="this.style.backgroundColor='#fff'; this.style.color='#0d6efd'">
+                                            👁️
+                                        </a>
+                                    </td>
+                                    <td>{{ colab.full_name }}</td>
+                                    <td>{{ colab.role or '-' }}</td>
+                                    <td>{{ colab.employee_type or '-' }}</td>
+                                    <td>{{ colab.admission_date.strftime('%d/%m/%Y') if colab.admission_date else '-' }}</td>
+                                    <td>{{ colab.team or '-' }}</td>
+                                    <td class="text-center">
+                                        {{ colab.loading_date.strftime('%d/%m/%Y') if colab.loading_date else '-' }}
+                                    </td>
+                                    <td>Informações por e-mail</td>
+                                    <td>Informações por e-mail</td>
+                                    <td>{{ colab.manager or '-' }}</td>
+                                    <td>{{ colab.corporate_manager or '-' }}</td>
+                                    <td>{{ colab.field_operation_date.strftime('%d/%m/%Y') if colab.field_operation_date else '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<!-- Modal para visualização dos detalhes do colaborador -->
+<div class="modal fade" id="modalDetalhesColaborador" tabindex="-1" aria-labelledby="modalDetalhesColaboradorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="modalDetalhesColaboradorLabel">Detalhes do Colaborador</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="container-fluid">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Informações Pessoais</h6>
+                            <div class="mb-2"><strong>Nome:</strong> <span id="colabNome"></span></div>
+                            <div class="mb-2"><strong>Matrícula:</strong> <span id="colabMatricula"></span></div>
+                            <div class="mb-2"><strong>CPF:</strong> <span id="colabCpf"></span></div>
+                            <div class="mb-2"><strong>Data de Nascimento:</strong> <span id="colabDataNascimento"></span></div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Informações Profissionais</h6>
+                            <div class="mb-2"><strong>Função:</strong> <span id="colabFuncao"></span></div>
+                            <div class="mb-2"><strong>Tipo de Colaborador:</strong> <span id="colabTipo"></span></div>
+                            <div class="mb-2"><strong>Data de Admissão:</strong> <span id="colabAdmissao"></span></div>
+                            <div class="mb-2"><strong>Turma:</strong> <span id="colabTurma"></span></div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Informações de Carregamento</h6>
+                            <div class="mb-2"><strong>Data de Carregamento:</strong> <span id="colabDataCarregamento"></span></div>
+                            <div class="mb-2"><strong>Local de Frota:</strong> <span id="colabLocalFrota"></span></div>
+                            <div class="mb-2"><strong>Local de Almoxarifado:</strong> <span id="colabLocalAlmox"></span></div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Responsáveis</h6>
+                            <div class="mb-2"><strong>Gerente:</strong> <span id="colabGerente"></span></div>
+                            <div class="mb-2"><strong>Gerente Corporativo:</strong> <span id="colabGerenteCorp"></span></div>
+                            <div class="mb-2"><strong>Data da Operação:</strong> <span id="colabDataOperacao"></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" id="btnEditarColaborador">
+                    <i class="bi bi-pencil"></i> Editar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
+
+<!-- Custom sorting for date columns -->
+<script>
+// Custom sorting for date in format dd/mm/yyyy
+$.fn.dataTable.moment('DD/MM/YYYY');
+
+// Custom type detection for date columns
+$.fn.dataTable.ext.type.detect.unshift(function (data) {
+    // Check for dates in format dd/mm/yyyy or dd/mm/yyyy - Day
+    if (typeof data !== 'string') {
+        return null;
+    }
+    
+    // Check for dates like "01/01/2023 - Segunda-feira"
+    var dateParts = data.trim().split(' ')[0].split('/');
+    if (dateParts.length === 3 && dateParts[0].length === 2 && dateParts[1].length === 2 && dateParts[2].length === 4) {
+        // Return a formatted date string that can be sorted
+        return moment(data.split(' ')[0], 'DD/MM/YYYY').format('YYYYMMDD');
+    }
+    
+    return null;
+});
+</script>
+
+<script>
+// Variável global para controle de alertas já exibidos
+let alertasExibidos = [];
+
+// Função para exportar para Excel
+function exportarParaExcel(data) {
+    // Se não for especificada uma data, exporta os itens selecionados
+    if (!data) {
+        const selecionados = document.querySelectorAll('.linha-selecionada:checked');
+        if (selecionados.length === 0) {
+            alert('Selecione pelo menos um colaborador para exportar.');
+            return;
+        }
+        
+        const ids = Array.from(selecionados).map(el => el.value);
+        window.location.href = `/exportar_carregamento?ids=${ids.join(',')}`;
+    } else {
+        window.location.href = `/exportar_carregamento?data=${data}`;
+    }
+}
+
+// Função para selecionar todos os itens de uma data
+function selecionarTodos(data) {
+    const checkboxes = document.querySelectorAll(`.linha-selecionada[data-data="${data}"]`);
+    const todosSelecionados = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(cb => {
+        cb.checked = !todosSelecionados;
+    });
+}
+
+// Função para selecionar todas as linhas de uma seção
+function selecionarTodosLinhas(data, checked) {
+    const checkboxes = document.querySelectorAll(`.linha-selecionada[data-data="${data}"]`);
+    checkboxes.forEach(cb => {
+        cb.checked = checked;
+    });
+}
+
+// Função para aplicar filtros
+function aplicarFiltros() {
+    const periodo = document.getElementById('filtroPeriodo').value;
+    const mesAno = document.getElementById('filtroMesAno').value;
+    const pesquisa = document.getElementById('pesquisaGeral').value.toLowerCase();
+    
+    // Lógica de filtragem por período
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    document.querySelectorAll('.data-carregamento').forEach(secao => {
+        const dataStr = secao.getAttribute('data-data');
+        const data = new Date(dataStr);
+        data.setHours(0, 0, 0, 0);
+        
+        let mostrar = true;
+        
+        // Aplicar filtro de período
+        if (periodo !== 'todos') {
+            const diffTime = data - hoje;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            switch(periodo) {
+                case 'hoje':
+                    mostrar = diffDays === 0;
+                    break;
+                case 'semana':
+                    const diaSemana = hoje.getDay();
+                    const inicioSemana = new Date(hoje);
+                    inicioSemana.setDate(hoje.getDate() - diaSemana);
+                    const fimSemana = new Date(hoje);
+                    fimSemana.setDate(hoje.getDate() + (6 - diaSemana));
+                    mostrar = data >= inicioSemana && data <= fimSemana;
+                    break;
+                case 'proximos_7':
+                    const fim7dias = new Date(hoje);
+                    fim7dias.setDate(hoje.getDate() + 7);
+                    mostrar = data >= hoje && data <= fim7dias;
+                    break;
+                case 'proximos_30':
+                    const fim30dias = new Date(hoje);
+                    fim30dias.setDate(hoje.getDate() + 30);
+                    mostrar = data >= hoje && data <= fim30dias;
+                    break;
+                case 'passados':
+                    mostrar = data < hoje;
+                    break;
+            }
+        }
+        
+        // Aplicar filtro de mês/ano
+        if (mesAno && mostrar) {
+            const [ano, mes] = mesAno.split('-').map(Number);
+            mostrar = data.getFullYear() === ano && (data.getMonth() + 1) === mes;
+        }
+        
+        // Aplicar pesquisa
+        if (pesquisa && mostrar) {
+            const linhas = secao.querySelectorAll('tbody tr');
+            let temResultado = false;
+            
+            linhas.forEach(linha => {
+                const textoLinha = linha.textContent.toLowerCase();
+                if (textoLinha.includes(pesquisa)) {
+                    linha.style.display = '';
+                    temResultado = true;
+                } else {
+                    linha.style.display = 'none';
+                }
+            });
+            
+            mostrar = temResultado;
+        }
+        
+        // Mostrar/ocultar seção
+        secao.style.display = mostrar ? 'block' : 'none';
+    });
+}
+
+// Função para verificar e exibir alertas para o administrador
+function verificarAlertasAdmin() {
+    // Verificar se é administrador
+    {% if current_user.access_type == 'admin' %}
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    // Verificar carregamentos para os próximos 5 dias
+    const alertas = [];
+    
+    // Mapeamento de dias da semana em inglês para português
+    const diasSemana = {
+        'Monday': 'Segunda-feira',
+        'Tuesday': 'Terça-feira',
+        'Wednesday': 'Quarta-feira',
+        'Thursday': 'Quinta-feira',
+        'Friday': 'Sexta-feira',
+        'Saturday': 'Sábado',
+        'Sunday': 'Domingo'
+    };
+    
+    document.querySelectorAll('.data-carregamento').forEach(secao => {
+        const dataStr = secao.getAttribute('data-data');
+        // Criar data no formato YYYY-MM-DD
+        const [ano, mes, dia] = dataStr.split('-').map(Number);
+        const data = new Date(ano, mes - 1, dia); // Mês é 0-based no JavaScript
+        data.setHours(0, 0, 0, 0);
+        
+        // Calcular diferença em dias
+        const diffTime = data - hoje;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        // Se for entre hoje e 5 dias no futuro
+        if (diffDays >= 0 && diffDays <= 5) {
+            const qtd = secao.querySelectorAll('.linha-selecionada').length;
+            // Obter o nome do dia da semana em inglês
+            const diaSemanaIngles = data.toLocaleDateString('en-US', { 
+                weekday: 'long',
+                timeZone: 'UTC'
+            });
+            
+            // Traduzir para português usando o mapeamento
+            const diaSemana = diasSemana[diaSemanaIngles] || diaSemanaIngles;
+            
+            // Formatar a data para exibição (DD/MM/YYYY)
+            const dataExibicao = data.toLocaleDateString('pt-BR');
+            
+            // Juntar dia da semana capitalizado com a data
+            const dataFormatada = diaSemana + ', ' + dataExibicao;
+            
+            alertas.push({
+                data: data,
+                dataStr: dataStr,
+                dataFormatada: dataFormatada,
+                dataExibicao: dataExibicao,
+                quantidade: qtd,
+                diffDays: diffDays
+            });
+        }
+    });
+    
+    // Ordenar por data mais próxima
+    alertas.sort((a, b) => a.diffDays - b.diffDays);
+    
+    // Exibir alertas
+    const container = document.getElementById('alertasAdmin');
+    container.innerHTML = '';
+    
+    alertas.forEach(alerta => {
+        // Verificar se já foi exibido um alerta para esta data
+        if (alertasExibidos.includes(alerta.dataStr)) return;
+        
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-warning alert-dismissible fade show ${alerta.diffDays === 0 ? 'alert-danger' : ''}`;
+        alertDiv.role = 'alert';
+        
+        const mensagem = alerta.diffDays === 0 
+            ? `<strong>Hoje (${alerta.dataExibicao})</strong> há ${alerta.quantidade} colaborador(es) com carregamento agendado.`
+            : alerta.diffDays === 1
+                ? `<strong>Amanhã (${alerta.dataExibicao})</strong> há ${alerta.quantidade} colaborador(es) com carregamento agendado.`
+                : `<strong>${alerta.dataFormatada} (${alerta.dataExibicao})</strong> - Em ${alerta.diffDays} dias há ${alerta.quantidade} colaborador(es) com carregamento agendado.`;
+        
+        alertDiv.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    ${mensagem}
+                </div>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-primary me-2" 
+                            onclick="irParaData('${alerta.dataStr}')">
+                        <i class="bi bi-arrow-right"></i> Ver
+                    </button>
+                    <button type="button" class="btn btn-sm btn-success" 
+                            onclick="marcarComoLido('${alerta.dataStr}', this)">
+                        <i class="bi bi-check-lg"></i> Já solicitei
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(alertDiv);
+    });
+    {% endif %}
+}
+
+// Função para ir para uma data específica
+function irParaData(dataStr) {
+    const elemento = document.querySelector(`.data-carregamento[data-data="${dataStr}"]`);
+    if (elemento) {
+        elemento.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        
+        // Adicionar destaque temporário
+        elemento.classList.add('border', 'border-warning');
+        setTimeout(() => {
+            elemento.classList.remove('border', 'border-warning');
+        }, 3000);
+    }
+    
+    // Marcar como lido
+    marcarComoLido(dataStr);
+}
+
+// Função para marcar um alerta como lido
+function marcarComoLido(dataStr, botao = null) {
+    // Adicionar ao array de alertas lidos se ainda não estiver lá
+    if (!alertasExibidos.includes(dataStr)) {
+        alertasExibidos.push(dataStr);
+        
+        // Armazenar no localStorage para persistência
+        localStorage.setItem('alertasLidos', JSON.stringify(alertasExibidos));
+    }
+    
+    // Remover o alerta da interface apenas se for um clique no botão "Já solicitei"
+    if (botao) {
+        const alertDiv = botao.closest('.alert');
+        if (alertDiv) {
+            alertDiv.style.transition = 'opacity 0.5s';
+            alertDiv.style.opacity = '0';
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 500);
+        }
+    }
+}
+
+// Função para carregar alertas já lidos
+function carregarAlertasLidos() {
+    const alertasSalvos = localStorage.getItem('alertasLidos');
+    if (alertasSalvos) {
+        alertasExibidos.push(...JSON.parse(alertasSalvos));
+    }
+}
+
+// Função para limpar todos os alertas
+function limparAlertas() {
+    if (confirm('Tem certeza que deseja reiniciar todos os alertas? Isso fará com que todos os alertas reapareçam.')) {
+        localStorage.removeItem('alertasLidos');
+        alertasExibidos = [];
+        verificarAlertasAdmin();
+    }
+}
+
+// Função para visualizar os detalhes de um colaborador
+function visualizarColaborador(colabId) {
+    // Redireciona para a página de visualização do colaborador
+    window.location.href = `/employee/view/${colabId}`;
+}
+
+// Inicialização quando o documento estiver pronto
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar DataTables em todas as tabelas
+    $('.table').each(function() {
+        $(this).DataTable({
+            "pageLength": 50,
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json"
+            },
+            "columnDefs": [
+                { "orderable": false, "targets": [0, 2] }, // Desabilitar ordenação para checkboxes e coluna de ações
+                { "type": "date-eu", "targets": '_all' } // Aplicar ordenação de data a todas as colunas
+            ],
+            "dom": 'Bfrtip',
+            "buttons": [
+                'copy', 'csv', 'excel', 'pdf', 'print'
+            ]
+        });
+    });
+
+    // Carregar alertas já lidos
+    carregarAlertasLidos();
+    
+    // Verificar e exibir alertas para o admin
+    verificarAlertasAdmin();
+    
+    // Configurar evento do toggle do histórico
+    const toggleHistorico = document.getElementById('toggleHistorico');
+    if (toggleHistorico) {
+        toggleHistorico.addEventListener('change', function() {
+            const conteudoHistorico = document.getElementById('conteudoHistorico');
+            if (conteudoHistorico) {
+                conteudoHistorico.style.display = this.checked ? 'block' : 'none';
+            }
+        });
+    }
+    
+    // Configurar evento de pesquisa ao digitar (com debounce)
+    const pesquisaGeral = document.getElementById('pesquisaGeral');
+    if (pesquisaGeral) {
+        let timeoutId;
+        pesquisaGeral.addEventListener('input', function() {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(aplicarFiltros, 300);
+        });
+    }
+    
+    // Configurar data atual no filtro de mês/ano
+    const hoje = new Date();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const filtroMesAno = document.getElementById('filtroMesAno');
+    if (filtroMesAno) {
+        filtroMesAno.value = `${hoje.getFullYear()}-${mes}`;
+    }
+    
+    // Aplicar filtros iniciais
+    aplicarFiltros();
+});
+</script>
+{% endblock %}

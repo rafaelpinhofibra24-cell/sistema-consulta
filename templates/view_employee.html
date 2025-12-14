@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block header %}Visualizar Colaborador{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="card-title mb-0">Detalhes do Colaborador</h5>
+                    <div class="text-muted small">
+                        Consulta em: {{ now.strftime('%d/%m/%Y %H:%M') }}
+                    </div>
+                </div>
+                
+                <div class="row mb-4">
+                    <!-- Primeira Coluna -->
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <strong class="d-block">Matrícula</strong>
+                            <span class="text-muted">{{ employee.registration }}</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong class="d-block">Nome Completo</strong>
+                            <span class="text-muted">{{ employee.full_name }}</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong class="d-block">Função</strong>
+                            <span class="text-muted">{{ employee.role or '-' }}</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong class="d-block">Tipo</strong>
+                            <span class="text-muted">{{ employee.employee_type or '-' }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Segunda Coluna -->
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <strong class="d-block">Data de Admissão</strong>
+                            <span class="text-muted">{{ employee.admission_date.strftime('%d/%m/%Y') if employee.admission_date else '-' }}</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong class="d-block">CEP</strong>
+                            <span class="text-muted">{{ employee.cep or '-' }}</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong class="d-block">Contato</strong>
+                            <span class="text-muted">{{ employee.contato or '-' }}</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong class="d-block">Turma</strong>
+                            <span class="text-muted">{{ employee.team or '-' }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Terceira Coluna -->
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <strong class="d-block">Status do Curso Técnico</strong>
+                            <span class="text-muted">{{ employee.course_status or '-' }}</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong class="d-block">Local do Curso</strong>
+                            <span class="text-muted">{{ employee.course_location or '-' }}</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong class="d-block">Gerente</strong>
+                            <span class="text-muted">{{ employee.manager or '-' }}</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong class="d-block">Gerente Corporativo</strong>
+                            <span class="text-muted">{{ employee.corporate_manager or '-' }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Destaque para Apto para Operação -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="p-2 rounded {{ 'bg-success' if employee.operation_ready == 'Sim' else 'bg-danger' }}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="text-white mb-0">Apto para Operação</p>
+                                </div>
+                                <div>
+                                    <span class="badge bg-white {{ 'text-success' if employee.operation_ready == 'Sim' else 'text-danger' }} p-1">
+                                        {{ employee.operation_ready or 'Não informado' }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <h6 class="text-muted mb-3">Fase Atual</h6>
+                    <div class="alert alert-info">
+                        {% set phase = employee.get_current_phase() %}
+                        {% if phase == 'Integração' %}
+                            <i class="bi bi-arrow-repeat me-2"></i>
+                            <span class="phase-indicator phase-integration">{{ phase }}</span>
+                        {% elif phase == 'Normativo' %}
+                            <i class="bi bi-book me-2"></i>
+                            <span class="phase-indicator phase-normative">{{ phase }}</span>
+                        {% elif phase == 'Curso Técnico' %}
+                            <i class="bi bi-mortarboard me-2"></i>
+                            <span class="phase-indicator phase-technical">{{ phase }}</span>
+                        {% elif phase == 'Duplado' %}
+                            <i class="bi bi-people me-2"></i>
+                            <span class="phase-indicator phase-double">{{ phase }}</span>
+                        {% elif phase == 'Carregamento' %}
+                            <i class="bi bi-truck me-2"></i>
+                            <span class="phase-indicator phase-carregamento">{{ phase }}</span>
+                        {% elif phase == 'Operação' %}
+                            <i class="bi bi-person-workspace me-2"></i>
+                            <span class="phase-indicator phase-operação">{{ phase }}</span>
+                        {% elif phase == 'Previsto' %}
+                            <i class="bi bi-calendar-event me-2"></i>
+                            <span class="phase-indicator phase-previsto">{{ phase }}</span>
+                        {% else %}
+                            <i class="bi bi-dash-circle me-2"></i>
+                            <span class="phase-indicator phase-inactive">{{ phase or 'Sem Fase Ativa' }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <h5 class="mb-3">Cronograma de Fases</h5>
+                    <style>
+                        .custom-table th, .custom-table td {
+                            vertical-align: middle !important;
+                            text-transform: uppercase;
+                        }
+                        .custom-table th:first-child,
+                        .custom-table td:first-child {
+                            text-align: left;
+                            white-space: normal;
+                            word-wrap: break-word;
+                            min-width: 180px;
+                        }
+                        .custom-table th:not(:first-child),
+                        .custom-table td:not(:first-child) {
+                            text-align: center;
+                            white-space: nowrap;
+                            min-width: 140px;
+                            padding: 0.75rem 0.5rem;
+                        }
+                        .custom-table th {
+                            position: relative;
+                            padding: 0.75rem 25px 0.75rem 0.5rem !important;
+                            cursor: pointer;
+                        }
+                        .custom-table th .sort-icon {
+                            margin-left: 5px;
+                            opacity: 0.5;
+                            font-size: 0.8em;
+                        }
+                        .custom-table th:hover .sort-icon {
+                            opacity: 1;
+                        }
+                        .custom-table {
+                            table-layout: fixed;
+                        }
+                    </style>
+                    <div class="table-responsive">
+                        <table class="table table-bordered custom-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 40%;">FASE <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                                    <th style="width: 30%;">INÍCIO <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                                    <th style="width: 30%;">TÉRMINO <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% set today = now.date() %}
+                                {% set current_phase = employee.get_current_phase() %}
+                                
+                                <!-- Integração -->
+                                <tr class="{% if current_phase == 'Integração' %}table-active{% endif %}">
+                                    <td class="text-nowrap"><i class="bi bi-arrow-repeat me-2"></i> INTEGRAÇÃO</td>
+                                    <td>{{ employee.integration_start.strftime('%d/%m/%Y') if employee.integration_start else '-' }}</td>
+                                    <td>{{ employee.integration_end.strftime('%d/%m/%Y') if employee.integration_end else '-' }}</td>
+                                </tr>
+                                
+                                <!-- Normativo -->
+                                <tr class="{% if current_phase == 'Normativo' %}table-active{% endif %}">
+                                    <td class="text-nowrap"><i class="bi bi-book me-2"></i> NORMATIVO</td>
+                                    <td>{{ employee.normative_start.strftime('%d/%m/%Y') if employee.normative_start else '-' }}</td>
+                                    <td>{{ employee.normative_end.strftime('%d/%m/%Y') if employee.normative_end else '-' }}</td>
+                                </tr>
+                                
+                                <!-- Curso Técnico -->
+                                <tr class="{% if current_phase == 'Curso Técnico' %}table-active{% endif %}">
+                                    <td class="text-nowrap"><i class="bi bi-mortarboard me-2"></i> CURSO TECNICO</td>
+                                    <td>{{ employee.technical_course_start.strftime('%d/%m/%Y') if employee.technical_course_start else '-' }}</td>
+                                    <td>{{ employee.technical_course_end.strftime('%d/%m/%Y') if employee.technical_course_end else '-' }}</td>
+                                </tr>
+                                
+                                <!-- Duplado -->
+                                <tr class="{% if current_phase == 'Duplado' %}table-active{% endif %}">
+                                    <td class="text-nowrap"><i class="bi bi-people me-2"></i> DUPLADO</td>
+                                    <td>{{ employee.double_start.strftime('%d/%m/%Y') if employee.double_start else '-' }}</td>
+                                    <td>{{ employee.double_end.strftime('%d/%m/%Y') if employee.double_end else '-' }}</td>
+                                </tr>
+                                
+                                <!-- Carregamento -->
+                                <tr class="{% if employee.loading_date and today == employee.loading_date %}table-active{% endif %}">
+                                    <td class="text-nowrap"><i class="bi bi-truck me-2"></i> CARREGAMENTO</td>
+                                    <td>{{ employee.loading_date.strftime('%d/%m/%Y') if employee.loading_date else '-' }}</td>
+                                    <td>{{ employee.loading_date.strftime('%d/%m/%Y') if employee.loading_date else '-' }}</td>
+                                </tr>
+                                
+                                <!-- Operação -->
+                                <tr class="{% if employee.field_operation_date and today >= employee.field_operation_date %}table-active{% endif %}">
+                                    <td class="text-nowrap"><i class="bi bi-person-workspace me-2"></i> OPERAÇÃO</td>
+                                    <td>{{ employee.field_operation_date.strftime('%d/%m/%Y') if employee.field_operation_date else '-' }}</td>
+                                    <td>{{ employee.field_operation_date.strftime('%d/%m/%Y') if employee.field_operation_date else '-' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{% if referrer == 'dashboard' %}{{ url_for_brand('dashboard_fases', brand=brand) }}{% else %}{{ url_for_brand('index', brand=brand) }}{% endif %}" class="btn btn-secondary me-md-2">
+                        <i class="bi bi-arrow-left me-1"></i> Voltar
+                    </a>
+                    {% if current_user.access_type == 'admin' %}
+                    <a href="{{ url_for_brand('edit_employee', brand=brand, employee_id=employee.id) }}" class="btn btn-primary">
+                        <i class="bi bi-pencil me-1"></i> Editar
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .phase-indicator {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.85em;
+        font-weight: 500;
+    }
+    .phase-integration { background-color: #90EE90; color: #000; } /* Verde claro */
+    .phase-normative { background-color: #006400; color: #fff; }  /* Verde escuro */
+    .phase-technical { background-color: #00008B; color: #fff; }  /* Azul escuro */
+    .phase-double { background-color: #87CEEB; color: #000; }     /* Azul claro */
+    .phase-carregamento { background-color: #FF0000; color: #fff; } /* Vermelho */
+    .phase-operação { background-color: #800080; color: #fff; }   /* Roxo */
+    .phase-inactive { background-color: #000000; color: #fff; }   /* Preto */
+    .phase-previsto { background-color: #A9A9A9; color: #000; }   /* Cinza */
+    .table-active { background-color: rgba(13, 110, 253, 0.05) !important; }
+</style>
+{% endblock %}

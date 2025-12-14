@@ -1,0 +1,16 @@
+# Render service configuration (example)
+# After pushing this repo to GitHub, connect it in Render and create a new Web Service.
+# Render will detect this file and can use Dockerfile to build the image.
+
+services:
+  - type: web
+    name: sistema-consulta
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: true
+      - key: SECRET_KEY
+        sync: true

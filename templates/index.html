@@ -1,0 +1,3764 @@
+{% extends "base.html" %}
+
+{% block header %}Lista de Colaboradores{% endblock %}
+
+{% block actions %}
+<div class="d-flex flex-wrap gap-2">
+    <div class="btn-group me-2">
+        {% if current_user.access_type == 'admin' %}
+        <button type="button" class="btn btn-sm btn-outline-primary py-0" data-bs-toggle="modal" data-bs-target="#uploadModal" style="font-size: 0.7rem; line-height: 1.5;">
+            <i class="bi bi-upload me-1"></i>Importar do Excel
+        </button>
+        {% endif %}
+        <a href="{{ url_for_brand('download_modelo', brand=brand) }}" class="btn btn-sm btn-outline-secondary py-0" style="font-size: 0.7rem; line-height: 1.5;">
+            <i class="bi bi-download me-1"></i>Baixar Modelo
+        </a>
+        <button type="button" class="btn btn-sm btn-success py-0" id="exportExcelBtn" style="font-size: 0.7rem; line-height: 1.5;">
+            <i class="bi bi-file-earmark-excel me-1"></i>Exportar para Excel
+        </button>
+    </div>
+    {% if current_user.access_type == 'admin' %}
+    <button id="deleteSelectedBtn" class="btn btn-sm btn-outline-danger py-0" style="font-size: 0.7rem; line-height: 1.5; display: none;">
+        <i class="bi bi-trash me-1"></i>Excluir Selecionados
+    </button>
+    {% endif %}
+</div>
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir este colaborador? Esta ação não pode ser desfeita.</p>
+                <p><strong>Matrícula:</strong> <span id="deleteEmployeeRegistration"></span></p>
+                <p><strong>Nome:</strong> <span id="deleteEmployeeName"></span></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Sim, Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block content %}
+<style>
+    /* Estilos simplificados para o Select2 com seleção múltipla */
+    .select2-container--bootstrap-5 {
+        width: 100% !important;
+    }
+    
+    /* Estilos para o contador de itens selecionados */
+    #selectedCount {
+        padding: 4px 8px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+    }
+    
+    #showSelectedItems {
+        text-decoration: none;
+        font-size: 0.85em;
+    }
+    
+    #showSelectedItems:hover {
+        text-decoration: underline;
+    }
+    
+    .select2-container--bootstrap-5 .select2-selection--multiple {
+        min-height: 38px;
+        height: 38px;
+        overflow: hidden;
+        padding: 0.375rem 0.75rem;
+    }
+    
+    .select2-container--bootstrap-5.select2-container--focus .select2-selection--multiple,
+    .select2-container--bootstrap-5.select2-container--open .select2-selection--multiple {
+        min-height: 38px;
+        height: auto;
+        max-height: 120px;
+        overflow-y: auto;
+    }
+    
+    .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__rendered {
+        display: block;
+        padding: 0;
+        overflow: hidden;
+    }
+    
+    .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
+        display: inline-flex;
+        align-items: center;
+        background-color: #e9ecef;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        padding: 0.15rem 0.5rem;
+        margin: 2px 4px 2px 0;
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+    
+    .select2-container--bootstrap-5 .select2-search--inline {
+        display: inline-block;
+        min-width: 100px;
+        margin: 0;
+    }
+    
+    .select2-dropdown {
+        border: 1px solid #ced4da;
+        border-radius: 0.375rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+
+    /* Container da tabela com barra de rolagem horizontal */
+    .card-body {
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 120px); /* Aumentando a altura */
+        min-height: 600px; /* Altura mínima para garantir boa visualização */
+    }
+    
+    .table-container {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    #employeesTable {
+        margin-bottom: 0;
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    
+    /* Estilo para o cabeçalho fixo */
+    .table-container {
+        position: relative;
+    }
+    
+    #employeesTable thead th {
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+        box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Ajuste para o container do cabeçalho */
+    .table-container thead {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+    }
+    
+    /* Estilo para a barra de rolagem */
+    .table-container::-webkit-scrollbar {
+        height: 10px;
+    }
+    
+    .table-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 5px;
+    }
+    
+    .table-container::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 5px;
+    }
+    
+    .table-container::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+    
+    /* Estilo para células de data */
+    .date-field {
+        width: 100px; /* Largura fixa para todas as células de data */
+        min-width: 100px;
+        max-width: 100px;
+        text-align: center !important;
+    }
+    
+    /* Estilo para cabeçalhos de data */
+    th[data-sort*="date"],
+    th[data-sort*="start"],
+    th[data-sort*="end"],
+    th.sortable {
+        width: 100px !important;
+        min-width: 100px !important;
+        max-width: 100px !important;
+        white-space: normal !important;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        padding: 4px !important;
+        text-align: center !important;
+        vertical-align: middle !important;
+    }
+    
+    /* Ajuste para o texto dentro dos cabeçalhos */
+    th .filter-header {
+        white-space: normal !important;
+        word-wrap: break-word;
+        line-height: 1.2;
+        display: flex;
+        flex-direction: column;
+        min-height: 60px;
+        justify-content: flex-start;
+        align-items: center;
+        text-align: center;
+        width: 100%;
+        padding: 4px 0;
+        position: relative;
+    }
+    
+    /* Container para filtro e ordenação */
+    .filter-sort-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1px;
+        margin: 0;
+        order: 1;
+        min-height: 14px;
+        width: 100%;
+        padding: 0;
+        box-sizing: border-box;
+        transform: scale(0.9);
+        transform-origin: center;
+        position: relative;
+        top: -2px;
+    }
+    
+    /* Estilo do filtro */
+    .filter-dropdown {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        z-index: 1000;
+    }
+    
+    .filter-icon {
+        background: #f8f9fa;
+        border: 0.5px solid #dee2e6;
+        border-radius: 0;
+        padding: 0;
+        font-size: 0.3rem;
+        cursor: pointer;
+        width: 10px;
+        height: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+    }
+    
+    .filter-icon:hover {
+        background: #e9ecef;
+    }
+    
+    /* Título da coluna */
+    .filter-header > span {
+        order: 2;
+        margin: 0;
+        font-weight: 500;
+        text-align: center;
+        width: 100%;
+        padding: 0;
+        line-height: 1.0;
+        min-height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.55rem;
+        position: relative;
+        top: -2px;
+    }
+    
+    /* Ícone de ordenação */
+    .sort-icon {
+        font-size: 0.4rem;
+        color: #6c757d;
+        cursor: pointer;
+        padding: 0;
+        border-radius: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 10px;
+        height: 10px;
+        flex-shrink: 0;
+        line-height: 1;
+    }
+    
+    .sort-icon:hover {
+        background-color: #f0f0f0;
+    }
+    
+    /* Menu suspenso do filtro */
+    .filter-dropdown-content {
+        display: none;
+        position: fixed !important;
+        background: white !important;
+        z-index: 99999 !important;
+        padding: 10px 15px;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+        min-width: 250px;
+        max-width: 90vw;
+        max-height: 70vh;
+        overflow-y: auto;
+        right: 20px !important;
+        left: auto !important;
+        margin: 0 !important;
+        font-size: 0.7rem;
+        line-height: 1.2;
+        text-align: left;
+    }
+    
+    /* Estilo para as opções do filtro */
+    .filter-dropdown-content .form-check {
+        margin: 2px 0;
+        min-height: 1.2rem;
+        padding: 0 0 0 0.5rem;
+        display: flex;
+        align-items: center;
+        width: 100%;
+        position: relative;
+    }
+    
+    .filter-dropdown-content .form-check-label {
+        font-size: 0.7rem;
+        padding: 0 0 0 0.5rem;
+        margin: 0;
+        vertical-align: middle;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex: 1;
+        text-align: left;
+        cursor: pointer;
+    }
+    
+    .filter-dropdown-content .form-check-input {
+        margin: 0;
+        width: 0.7rem;
+        height: 0.7rem;
+        flex-shrink: 0;
+    }
+    
+    /* Estilo para o campo de busca */
+    .filter-dropdown-content .form-control-sm {
+        font-size: 0.7rem;
+        padding: 0.1rem 0.3rem 0.1rem 0.5rem; /* Mais padding à esquerda */
+        margin: 0 0 4px 0.5rem; /* Margem à esquerda */
+        height: calc(1.1em + 0.2rem + 1px);
+        border-radius: 2px;
+        width: calc(100% - 0.8rem); /* Ajuste de largura */
+    }
+    
+    /* Ajuste para o container de opções */
+    .filter-options-container {
+        max-height: 45vh;
+        overflow-y: auto;
+        margin: 2px 0 2px 0;
+        padding: 0 0 0 0.5rem;
+    }
+    
+    /* Ajuste para o cabeçalho do filtro */
+    .filter-option {
+        margin-bottom: 4px;
+    }
+    
+    /* Removido o hover para abrir o dropdown, agora só abre com clique */
+    
+    /* Estilo para os filtros automáticos */
+    .filter-option {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 150px;
+        padding: 4px;
+    }
+    
+    .filter-option input[type="text"],
+    .filter-option input[type="date"] {
+        width: 100%;
+        font-size: 0.7rem;
+        padding: 0.15rem 0.3rem;
+    }
+    
+    .filter-options-container,
+    .filter-options {
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 4px;
+        padding: 4px;
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .filter-option .btn {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.3rem;
+    }
+    
+    .sortable {
+        cursor: pointer;
+        position: relative;
+        user-select: none;
+    }
+    
+    .sortable:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .sort-icon {
+        opacity: 0.3;
+        font-size: 0.8em;
+    }
+    
+    .sort-asc .sort-icon {
+        opacity: 1;
+    }
+    
+    .sort-desc .sort-icon {
+        opacity: 1;
+        transform: rotate(180deg);
+        display: inline-block;
+    }
+    
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Ajustes para o container de pesquisa */
+    .search-container {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+    }
+    
+    .search-container .input-group {
+        flex: 1;
+    }
+    
+    .search-container .form-select {
+        width: 100%;
+    }
+    
+    .search-container .input-group .select2-container {
+        width: 100% !important;
+    }
+    
+    .search-container .btn-clear {
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Estilo para os cabeçalhos com filtro */
+    .filter-header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        min-height: 34px;
+        padding: 0;
+        margin: 0;
+        position: relative;
+    }
+    
+    .filter-icon, .sort-icon {
+        cursor: pointer;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+    
+    .filter-icon {
+        transition: all 0.2s;
+        padding: 4px;
+        border-radius: 4px;
+        background: rgba(0,0,0,0.03);
+    }
+    
+    .filter-header:hover .filter-icon {
+        background: rgba(0,0,0,0.05);
+        opacity: 0.8;
+    }
+    
+    .filter-header:hover .filter-icon {
+        opacity: 1;
+    }
+    
+    .filter-dropdown {
+        position: static;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .filter-dropdown-content {
+        display: none;
+        position: fixed;
+        background-color: white;
+        width: 250px;
+        max-width: 90vw;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        z-index: 1050;
+        padding: 15px;
+        border-radius: 8px;
+        max-height: 70vh;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        margin: 0;
+    }
+    
+    .filter-dropdown.active .filter-dropdown-content {
+        display: block !important;
+        position: fixed !important;
+        z-index: 99999 !important;
+    }
+    
+    .filter-option {
+        padding: 10px 12px;
+        cursor: pointer;
+        white-space: normal;
+        border-bottom: 1px solid #f1f1f1;
+        transition: all 0.2s ease;
+        line-height: 1.4;
+        margin: 0 -15px;
+        padding: 8px 20px;
+    }
+    
+    .filter-option:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .filter-options-container {
+        max-height: 60vh;
+        overflow-y: auto;
+        margin: 10px -10px -10px -10px;
+        padding: 5px 10px;
+    }
+    
+    .filter-option:last-child {
+        border-bottom: none;
+    }
+    
+    .filter-option .form-check {
+        margin: 0;
+        padding: 0;
+    }
+    
+    .filter-option .form-check-label {
+        width: 100%;
+        cursor: pointer;
+        padding: 4px 0;
+        display: block;
+    }
+    
+    .filter-option:hover {
+        background-color: #f1f8ff;
+    }
+    
+    .filter-option input[type="checkbox"]:checked + label {
+        font-weight: 500;
+        color: #0d6efd;
+    }
+    
+    .filter-option input[type="checkbox"] {
+        margin-right: 8px;
+        cursor: pointer;
+    }
+    
+    /* Estilo para o campo de busca dentro do dropdown */
+    .filter-dropdown-content input[type="text"] {
+        width: 100%;
+        margin-bottom: 12px;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        font-size: 14px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    .filter-dropdown-content input[type="text"]:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* Estilo para o botão de limpar filtro */
+    .filter-dropdown-content .btn {
+        font-size: 14px;
+        padding: 6px 12px;
+        margin-bottom: 10px;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+    }
+    
+    /* Melhorar a aparência dos checkboxes */
+    .form-check-input:checked {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+    .nowrap {
+        white-space: nowrap;
+    }
+    .phase-indicator {
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        text-align: center;
+        display: inline-block;
+        min-width: 80px;
+    }
+    .phase-integration { background-color: #90EE90; color: #000; } /* Verde claro */
+    .phase-normative { background-color: #006400; color: #fff; }  /* Verde escuro */
+    .phase-technical { background-color: #00008B; color: #fff; }  /* Azul escuro */
+    .phase-double { background-color: #87CEEB; color: #000; }     /* Azul claro */
+    .phase-carregamento { background-color: #FF0000; color: #fff; } /* Vermelho */
+    .phase-operação { background-color: #800080; color: #fff; }   /* Roxo */
+    .phase-inactive { background-color: #000000; color: #fff; }   /* Preto */
+    .phase-previsto { background-color: #A9A9A9; color: #000; }   /* Cinza */
+</style>
+
+<div class="card">
+    <div class="card-body">
+        <!-- Filtros Avançados -->
+        <div class="mb-3">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="searchField" class="form-label">Campo para Pesquisa</label>
+                    <select class="form-select" id="searchField">
+                        <optgroup label="Dados Pessoais">
+                            <option value="registration">Matrícula</option>
+                            <option value="full_name">Nome Completo</option>
+                            <option value="role">Função</option>
+                            <option value="employee_type">Tipo</option>
+                            <option value="admission_date">Data de Admissão</option>
+                            <option value="status">Situação</option>
+                        </optgroup>
+                        <optgroup label="Informações de Curso">
+                            <option value="course_status">Status do Curso Técnico</option>
+                            <option value="team">Turma</option>
+                            <option value="instructor">Instrutor</option>
+                        </optgroup>
+                        <optgroup label="Gestão">
+                            <option value="manager">Gerente</option>
+                            <option value="corporate_manager">Gerente Corporativo</option>
+                        </optgroup>
+                        <optgroup label="Datas Importantes">
+                            <option value="load_date">Data de Carregamento</option>
+                            <option value="field_operation_date">Data de Operação em Campo</option>
+                            <option value="technical_course_start">Data de Início do Curso</option>
+                            <option value="double_start">Data de Início Duplado</option>
+                        </optgroup>
+                        <optgroup label="Outros">
+                            <option value="all">Todos os Campos</option>
+                            <option value="contato">Contato</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="searchInput" class="form-label">Termo de Pesquisa</label>
+                    <div class="search-container">
+                        <div class="input-group">
+                            <select class="form-select" id="searchInput" style="width: 100%;" multiple="multiple">
+                                <!-- Opções serão carregadas dinamicamente -->
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" id="clearSearch" style="display: none;">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                        <div id="selectedCount" class="text-muted small mt-1" style="display: none;">
+                            <span id="selectedItemsCount">0</span> itens selecionados
+                            <a href="#" id="showSelectedItems" class="ms-2">(mostrar/ocultar)</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="d-flex w-100 gap-2">
+                        <button class="btn btn-outline-secondary flex-grow-1" id="clearAllFilters">
+                            <i class="bi bi-x-lg me-1"></i> Limpar
+                        </button>
+                        <button class="btn btn-primary flex-grow-1" id="searchButton" style="display: none;">
+                            <i class="bi bi-search me-1"></i> Pesquisar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <table class="table table-hover table-bordered table-striped" id="employeesTable" style="font-size: 0.7rem; min-width: 100%; table-layout: auto;">
+                <thead class="table-light">
+                    <tr>
+                        <th class="nowrap" style="font-size: 0.7rem; vertical-align: middle; width: 40px;">
+                            <div class="form-check d-flex justify-content-center">
+                                <input class="form-check-input select-all-checkbox" type="checkbox" id="selectAllCheckbox">
+                            </div>
+                        </th>
+                        <th class="nowrap" style="font-size: 0.7rem; vertical-align: middle;">
+                            <div style="min-height: 60px; display: flex; flex-direction: column; justify-content: center;">
+                                <div style="height: 24px;"></div>
+                                <span>Ações</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="field_operation_date">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" style="width: 250px; padding: 15px;">
+                                            <div class="mb-3">
+                                                <h6 class="mb-3">Filtrar por Data de Operação</h6>
+                                                
+                                                <div class="mb-3">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Filtrar por mês/ano:</label>
+                                                    <select class="form-select form-select-sm" id="monthYearFilter">
+                                                        <option value="">Selecione o mês/ano</option>
+                                                        {% set months = {} %}
+                                                        {% set meses = {
+                                                            '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março',
+                                                            '04': 'Abril', '05': 'Maio', '06': 'Junho',
+                                                            '07': 'Julho', '08': 'Agosto', '09': 'Setembro',
+                                                            '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
+                                                        } %}
+                                                        {% for emp in employees %}
+                                                            {% if emp.field_operation_date %}
+                                                                {% set month_year = emp.field_operation_date.strftime('%Y-%m') %}
+                                                                {% set month_num = emp.field_operation_date.strftime('%m') %}
+                                                                {% set month_name = meses[month_num] %}
+                                                                {% set year = emp.field_operation_date.strftime('%Y') %}
+                                                                {% if month_year not in months %}
+                                                                    {% set _ = months.update({month_year: True}) %}
+                                                                    <option value="{{ month_year }}">{{ month_name }}/{{ year }}</option>
+                                                                {% endif %}
+                                                            {% endif %}
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                
+                                                <div class="text-center mb-2">
+                                                    <span style="color: #6c757d; font-size: 0.8rem;">OU</span>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Selecionar data específica:</label>
+                                                    <select class="form-select form-select-sm" id="exactDateFilter">
+                                                        <option value="">Selecione uma data</option>
+                                                        {% set dates = {} %}
+                                                        {% for emp in employees %}
+                                                            {% if emp.field_operation_date %}
+                                                                {% set date_str = emp.field_operation_date.strftime('%Y-%m-%d') %}
+                                                                {% set display_date = emp.field_operation_date.strftime('%d/%m/%Y') %}
+                                                                {% if date_str not in dates %}
+                                                                    {% set _ = dates.update({date_str: display_date}) %}
+                                                                    <option value="{{ date_str }}">{{ display_date }}</option>
+                                                                {% endif %}
+                                                            {% endif %}
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                
+                                                <div class="d-grid gap-2">
+                                                    <button type="button" class="btn btn-sm btn-primary" 
+                                                            onclick="event.stopPropagation(); console.log('Botão Aplicar Filtro clicado'); window.applyDateFilter();">
+                                                        <i class="bi bi-funnel"></i> Aplicar Filtro
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-secondary" onclick="clearDateFilter('field_operation_date')">
+                                                        <i class="bi bi-x-circle"></i> Limpar Filtro
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('field_operation_date')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Data Operação Campo</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable" style="font-size: 0.7rem;" data-sort="registration">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="registration">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('registration')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Matrícula</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable" style="font-size: 0.7rem;" data-sort="full_name">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="full_name">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('full_name')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Nome Completo</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable" style="font-size: 0.7rem;" data-sort="role">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="role">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('role')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Função</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable" style="font-size: 0.7rem;" data-sort="employee_type">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="employee_type">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('employee_type')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Tipo</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="admission_date">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" style="width: 250px; padding: 15px;">
+                                            <div class="mb-3">
+                                                <h6 class="mb-3">Filtrar por Data de Admissão</h6>
+                                                
+                                                <div class="mb-3">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Filtrar por mês/ano:</label>
+                                                    <select class="form-select form-select-sm" id="monthYearFilterAdmission" onchange="onMonthYearAdmissionChange(this)">
+                                                        <option value="">Selecione o mês/ano</option>
+                                                        {% set months_admission = {} %}
+                                                        {% set meses = {
+                                                            '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março',
+                                                            '04': 'Abril', '05': 'Maio', '06': 'Junho',
+                                                            '07': 'Julho', '08': 'Agosto', '09': 'Setembro',
+                                                            '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
+                                                        } %}
+                                                        {% for emp in employees %}
+                                                            {% if emp.admission_date %}
+                                                                {% set month_year = emp.admission_date.strftime('%Y-%m') %}
+                                                                {% set month_num = emp.admission_date.strftime('%m') %}
+                                                                {% set month_name = meses[month_num] %}
+                                                                {% set year = emp.admission_date.strftime('%Y') %}
+                                                                {% if month_year not in months_admission %}
+                                                                    {% set _ = months_admission.update({month_year: True}) %}
+                                                                    <option value="{{ month_year }}">{{ month_name }}/{{ year }}</option>
+                                                                {% endif %}
+                                                            {% endif %}
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                
+                                                <div class="text-center mb-2">
+                                                    <span style="color: #6c757d; font-size: 0.8rem;">OU</span>
+                                                </div>
+                                                
+                                                <div class="mb-3">
+                                                    <label class="form-label" style="font-size: 0.8rem;">Selecionar data específica:</label>
+                                                    <select class="form-select form-select-sm" id="exactDateFilterAdmission">
+                                                        <option value="">Selecione uma data</option>
+                                                        {% set dates_admission = {} %}
+                                                        {% for emp in employees %}
+                                                            {% if emp.admission_date %}
+                                                                {% set date_str = emp.admission_date.strftime('%Y-%m-%d') %}
+                                                                {% set display_date = emp.admission_date.strftime('%d/%m/%Y') %}
+                                                                {% if date_str not in dates_admission %}
+                                                                    {% set _ = dates_admission.update({date_str: display_date}) %}
+                                                                    <option value="{{ date_str }}">{{ display_date }}</option>
+                                                                {% endif %}
+                                                            {% endif %}
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                
+                                                <div class="d-grid gap-2">
+                                                    <button type="button" class="btn btn-sm btn-primary" onclick="event.stopPropagation(); console.log('Botão Aplicar Filtro clicado'); applyDateFilterAdmission();">
+                                                        <i class="bi bi-funnel"></i> Aplicar Filtro
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); clearDateFilter('admission_date')">
+                                                        <i class="bi bi-x-circle"></i> Limpar Filtro
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('admission_date')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Data de Admissão</span>
+                            </div>
+                        </th>
+                        <th class="nowrap">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('cep')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">CEP</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable" style="font-size: 0.7rem;" data-sort="status">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="status">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('status')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Situação</span>
+                            </div>
+                        </th>
+                        <th class="nowrap">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="phase">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('phase')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Fase Atual</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable" style="font-size: 0.7rem;" data-sort="course_status">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="course_status">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('course_status')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Status do Curso Técnico</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable" style="font-size: 0.7rem;" data-sort="team">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="team">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('team')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Turma</span>
+                            </div>
+                        </th>
+                        <th class="nowrap">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="course_location">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('course_location')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Local do Curso</span>
+                            </div>
+                        </th>
+                        <th class="nowrap">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="manager">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('manager')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Gerente</span>
+                            </div>
+                        </th>
+                        <th class="nowrap">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="corporate_manager">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('corporate_manager')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Gerente Corporativo</span>
+                            </div>
+                        </th>
+                        <th class="nowrap">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content" data-field="instructor">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar...">
+                                                <div class="filter-options-container"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('instructor')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Instrutor</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable" style="font-size: 0.7rem;" data-sort="contato">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('contato')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Contato</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable" style="font-size: 0.7rem;" data-sort="operation_ready">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <div class="filter-dropdown">
+                                        <i class="bi bi-funnel filter-icon"></i>
+                                        <div class="filter-dropdown-content">
+                                            <div class="filter-option">
+                                                <input type="text" class="form-control form-control-sm" placeholder="Filtrar..." onkeyup="filterColumn(this, 'operation_ready')">
+                                                <div class="filter-options" data-field="operation_ready"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('operation_ready')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Apto para Operação</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="integration_start">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('integration_start')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Início Integração</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="integration_end">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('integration_end')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Término Integração</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="normative_start">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('normative_start')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Início Normativo</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="normative_end">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('normative_end')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Término Normativo</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="technical_course_start">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('technical_course_start')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Início Curso Técnico</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="technical_course_end">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('technical_course_end')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Término Curso Técnico</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="double_start">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('double_start')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Início Duplado</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="double_end">
+                            <div class="filter-header">
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('double_end')"></i>
+                                </div>
+                                <span style="font-size: 0.7rem; margin-top: 4px;">Término Duplado</span>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="loading_date">
+                            <div class="filter-header">
+                                <div>Carregamento</div>
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" onclick="sortTable('loading_date')"></i>
+                                </div>
+                            </div>
+                        </th>
+                        <th class="nowrap sortable text-center" style="font-size: 0.7rem;" data-sort="last_updated">
+                            <div class="filter-header">
+                                <div>Última Atualização</div>
+                                <div class="filter-sort-container">
+                                    <i class="bi bi-arrow-down-up sort-icon" style="display: none;"></i>
+                                    <i class="bi bi-arrow-down sort-icon" style="display: none;"></i>
+                                    <i class="bi bi-arrow-up sort-icon" style="display: none;"></i>
+                                </div>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for employee in employees %}
+                    {% set phase = employee.get_current_phase() %}
+                    <tr data-employee-id="{{ employee.id }}">
+                        <td class="text-center">
+                            <div class="form-check d-flex justify-content-center">
+                                <input class="form-check-input employee-checkbox" type="checkbox" value="{{ employee.id }}">
+                            </div>
+                        </td>
+                        <td class="nowrap">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for_brand('view_employee', brand=brand, employee_id=employee.id, referrer='colaboradores') }}" class="btn btn-sm btn-outline-primary p-0 px-1 me-1" title="Visualizar" style="font-size: 0.7rem; line-height: 1.2;">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                {% if current_user.access_type == 'admin' %}
+                                <a href="{{ url_for_brand('edit_employee', brand=brand, employee_id=employee.id) }}" class="btn btn-sm btn-outline-secondary p-0 px-1" title="Editar" style="font-size: 0.7rem; line-height: 1.2;">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button class="btn btn-sm btn-outline-danger p-0 px-1 delete-employee" data-id="{{ employee.id }}" title="Excluir" style="font-size: 0.7rem; line-height: 1.2;">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="nowrap text-center date-field" data-field="field_operation_date">{% if employee.field_operation_date %}{{ employee.field_operation_date.strftime('%d/%m/%Y') }}{% else %}-{% endif %}</td>
+                        <td class="nowrap" data-field="registration">{{ employee.registration or '-' }}</td>
+                        <td class="nowrap" data-field="full_name">{{ employee.full_name if employee.full_name else '-' }}</td>
+                        <td class="nowrap editable" data-field="role">{{ employee.role or '-' }}</td>
+                        <td class="nowrap" data-field="employee_type">{{ employee.employee_type if employee.employee_type else '-' }}</td>
+                        <td class="nowrap text-center editable date-field" data-field="admission_date">{{ employee.admission_date.strftime('%d/%m/%Y') if employee.admission_date else '-' }}</td>
+                        <td class="nowrap" data-field="cep">{{ employee.cep if employee.cep else '-' }}</td>
+                        <td class="nowrap editable" data-field="status">{{ employee.status or '-' }}</td>
+                        <td class="nowrap phase-cell">
+                            {% if phase == 'Integração' %}
+                                <span class="phase-indicator phase-integration">{{ phase }}</span>
+                            {% elif phase == 'Normativo' %}
+                                <span class="phase-indicator phase-normative">{{ phase }}</span>
+                            {% elif phase == 'Curso Técnico' %}
+                                <span class="phase-indicator phase-technical">{{ phase }}</span>
+                            {% elif phase == 'Duplado' %}
+                                <span class="phase-indicator phase-double">{{ phase }}</span>
+                            {% elif phase == 'Carregamento' %}
+                                <span class="phase-indicator phase-carregamento">{{ phase }}</span>
+                            {% elif phase == 'Operação' %}
+                                <span class="phase-indicator phase-operação">{{ phase }}</span>
+                            {% elif phase == 'Previsto' %}
+                                <span class="phase-indicator phase-previsto">{{ phase }}</span>
+                            {% else %}
+                                <span class="phase-indicator phase-inactive">{{ phase or '-' }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="nowrap" data-field="course_status">{{ employee.course_status if employee.course_status else '-' }}</td>
+                        <td class="nowrap editable" data-field="team">{{ employee.team or '-' }}</td>
+                        <td class="nowrap" data-field="course_location">{{ employee.course_location if employee.course_location else '-' }}</td>
+                        <td class="nowrap editable" data-field="manager">{{ employee.manager or '-' }}</td>
+                        <td class="nowrap" data-field="corporate_manager">{{ employee.corporate_manager if employee.corporate_manager else '-' }}</td>
+                        <td class="nowrap editable" data-field="instructor">{{ employee.instructor or '-' }}</td>
+                        <td class="nowrap" data-field="contato">{{ employee.contato if employee.contato else '-' }}</td>
+                        <td class="nowrap editable" data-field="operation_ready">{{ employee.operation_ready or '-' }}</td>
+                        <td class="nowrap text-center date-field" data-field="integration_start">{% if employee.integration_start %}{{ employee.integration_start.strftime('%d/%m/%Y') }}{% else %}-{% endif %}</td>
+                        <td class="nowrap text-center date-field" data-field="integration_end">{% if employee.integration_end %}{{ employee.integration_end.strftime('%d/%m/%Y') }}{% else %}-{% endif %}</td>
+                        <td class="nowrap text-center date-field" data-field="normative_start">{% if employee.normative_start %}{{ employee.normative_start.strftime('%d/%m/%Y') }}{% else %}-{% endif %}</td>
+                        <td class="nowrap text-center date-field" data-field="normative_end">{% if employee.normative_end %}{{ employee.normative_end.strftime('%d/%m/%Y') }}{% else %}-{% endif %}</td>
+                        <td class="nowrap text-center date-field" data-field="technical_course_start">{% if employee.technical_course_start %}{{ employee.technical_course_start.strftime('%d/%m/%Y') }}{% else %}-{% endif %}</td>
+                        <td class="nowrap text-center date-field" data-field="technical_course_end">{% if employee.technical_course_end %}{{ employee.technical_course_end.strftime('%d/%m/%Y') }}{% else %}-{% endif %}</td>
+                        <td class="nowrap text-center date-field" data-field="double_start">{% if employee.double_start %}{{ employee.double_start.strftime('%d/%m/%Y') }}{% else %}-{% endif %}</td>
+                        <td class="nowrap text-center date-field" data-field="double_end">{% if employee.double_end %}{{ employee.double_end.strftime('%d/%m/%Y') }}{% else %}-{% endif %}</td>
+                        <td class="nowrap text-center date-field" data-field="loading_date">{% if employee.loading_date %}{{ employee.loading_date.strftime('%d/%m/%Y') }}{% else %}-{% endif %}</td>
+                        <td class="nowrap text-center" data-field="last_updated">
+                            {% if employee.last_updated %}
+                                {{ employee.last_updated.strftime('%d/%m/%Y %H:%M') }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr id="noEmployeesRow">
+                        <td colspan="28" class="text-center">Nenhum colaborador cadastrado</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sistema de Gestão de Colaboradores{% endblock %}</title>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Garante que o jQuery está disponível globalmente
+    window.jQuery = window.$ = jQuery;
+    </script>
+    
+    <!-- Script de inicialização -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM completamente carregado, configurando eventos...');
+        
+        // Adicionar evento de clique para o botão de aplicar filtro de data de operação
+        const applyButton = document.querySelector('button[onclick*="applyDateFilter"]');
+        if (applyButton) {
+            applyButton.addEventListener('click', function(e) {
+                console.log('Botão de aplicar filtro clicado');
+                e.stopPropagation();
+                if (window.applyDateFilterAdmission) {
+                    applyDateFilterAdmission();
+                } else {
+                    console.error('applyDateFilterAdmission não está definido!');
+                }
+            });
+        } else {
+            console.error('Botão de aplicar filtro não encontrado!');
+        }
+        
+        // Configurar evento de mudança no seletor de mês/ano
+        const monthYearSelect = document.getElementById('monthYearFilterAdmission');
+        if (monthYearSelect) {
+            console.log('Seletor de mês/ano encontrado');
+            monthYearSelect.onchange = function() {
+                if (window.onMonthYearAdmissionChange) {
+                    onMonthYearAdmissionChange(this);
+                } else {
+                    console.error('onMonthYearAdmissionChange não está definido!');
+                }
+            };
+        }
+        
+        // Configurar evento de mudança no seletor de data exata
+        const exactDateSelect = document.getElementById('exactDateFilterAdmission');
+        if (exactDateSelect) {
+            console.log('Seletor de data exata encontrado');
+            exactDateSelect.onchange = function() {
+                if (window.applyExactDateFilterAdmission) {
+                    applyExactDateFilterAdmission();
+                } else {
+                    console.error('applyExactDateFilterAdmission não está definido!');
+                }
+            };
+        }
+        
+        console.log('Eventos configurados com sucesso!');
+    });
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/pt-BR.js"></script>
+</head>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editModalLabel">Editar Colaborador</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <p class="mb-1"><strong>Matrícula:</strong></p>
+                    <div class="p-2 bg-light rounded">
+                        <span id="editRegistration"></span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <p class="mb-1"><strong>Nome do Colaborador:</strong></p>
+                    <div class="p-2 bg-light rounded">
+                        <span id="editEmployeeName"></span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" id="editFieldLabel">Campo para edição:</label>
+                    <input type="text" class="form-control" id="editFieldValue">
+                    <input type="date" class="form-control d-none" id="editDateFieldValue">
+                    <select class="form-select d-none" id="editSelectValue"></select>
+                    <input type="hidden" id="editFieldName">
+                    <input type="hidden" id="editEmployeeId">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveChangesBtn">Salvar Alterações</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadModalLabel">Importar Dados do Excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="excelFile" class="form-label">Selecione o arquivo Excel</label>
+                    <input class="form-control" type="file" id="excelFile" accept=".xlsx, .xls">
+                    <div class="form-text">O arquivo deve conter as colunas conforme o modelo padrão.</div>
+                </div>
+                <div id="uploadStatus" class="d-none alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="uploadButton" disabled>Importar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<style>
+    .editable {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .editable:hover {
+        background-color: #f8f9fa;
+    }
+    .editing {
+        background-color: #fff3cd !important;
+        padding: 0.25rem !important;
+    }
+    .editable-input {
+        flex: 1;
+        min-width: 50px;
+        padding: 0.25rem;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+    .editable-date {
+        min-width: 100px;
+    }
+    .editing .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        line-height: 1;
+    }
+    .editing .d-flex {
+        width: 100%;
+    }
+</style>
+
+{% block extra_js %}
+<script>
+// Format date from DD/MM/YYYY to YYYY-MM-DD for date inputs
+function formatDateForInput(dateStr) {
+    if (!dateStr || dateStr === '-') return '';
+    const [day, month, year] = dateStr.split('/');
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
+// Format date from YYYY-MM-DD to DD/MM/YYYY for display
+function formatDateForDisplay(dateStr) {
+    if (!dateStr) return '-';
+    const [year, month, day] = dateStr.split('-');
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+}
+
+// Show edit modal for a cell
+function showEditModal(cell, field, employeeId, isDate = false) {
+    const originalValue = cell.textContent.trim();
+    const row = cell.closest('tr');
+    const registration = row.querySelector('td:nth-child(2)').textContent.trim();
+    const employeeName = row.querySelector('td:nth-child(3)').textContent.trim();
+    
+    // Get field label from table header
+    const columnIndex = Array.from(cell.parentElement.children).indexOf(cell) + 1;
+    const fieldLabel = document.querySelector(`th:nth-child(${columnIndex})`).textContent.trim();
+    
+    // Set modal values
+    document.getElementById('editRegistration').textContent = registration;
+    document.getElementById('editEmployeeName').textContent = employeeName;
+    document.getElementById('editFieldLabel').textContent = `Editar ${fieldLabel.toLowerCase()}:`;
+    document.getElementById('editFieldName').value = field;
+    document.getElementById('editEmployeeId').value = employeeId;
+    
+    // Show appropriate input field (text, date or select)
+    const textInput = document.getElementById('editFieldValue');
+    const dateInput = document.getElementById('editDateFieldValue');
+    const selectInput = document.getElementById('editSelectValue');
+    
+    // Hide all inputs first
+    textInput.classList.add('d-none');
+    dateInput.classList.add('d-none');
+    selectInput.classList.add('d-none');
+    
+    // Define os campos que devem usar o select
+    const selectFields = ['status', 'employee_type', 'course_status', 'team', 'course_location', 'phase'];
+    
+    if (isDate) {
+        dateInput.classList.remove('d-none');
+        dateInput.value = formatDateForInput(originalValue);
+    } else if (selectFields.includes(field)) {
+        // Configurar opções do select com base no campo
+        selectInput.innerHTML = '';
+        
+        // Adiciona a opção vazia
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'Selecione uma opção';
+        selectInput.appendChild(defaultOption);
+        
+        // Adiciona opções específicas para cada campo
+        if (field === 'status') {
+            const options = ['Ativo', 'Afastado', 'Desligado', 'Férias', 'Licença Médica'];
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                optionElement.selected = (option === originalValue);
+                selectInput.appendChild(optionElement);
+            });
+        } else if (field === 'employee_type') {
+            const options = ['CLT', 'PJ', 'Estagiário', 'Temporário'];
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                optionElement.selected = (option === originalValue);
+                selectInput.appendChild(optionElement);
+            });
+        } else if (field === 'course_status') {
+            const options = ['Não Iniciado', 'Em Andamento', 'Concluído', 'Atrasado', 'Cancelado'];
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                optionElement.selected = (option === originalValue);
+                selectInput.appendChild(optionElement);
+            });
+        } else if (field === 'team') {
+            const options = ['Time A', 'Time B', 'Time C', 'Time D'];
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                optionElement.selected = (option === originalValue);
+                selectInput.appendChild(optionElement);
+            });
+        } else if (field === 'course_location') {
+            const options = ['Sala 1', 'Sala 2', 'Sala 3', 'Online'];
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                optionElement.selected = (option === originalValue);
+                selectInput.appendChild(optionElement);
+            });
+        } else if (field === 'phase') {
+            const options = ['Integração', 'Normativo', 'Curso Técnico', 'Duplado'];
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                optionElement.selected = (option === originalValue);
+                selectInput.appendChild(optionElement);
+            });
+        }
+        
+        selectInput.classList.remove('d-none');
+    } else {
+        textInput.classList.remove('d-none');
+        textInput.value = originalValue === '-' ? '' : originalValue;
+    }
+    
+    // Store the cell reference for later use
+    const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+    editModal._cell = cell;
+    editModal._originalValue = originalValue;
+    editModal._isDate = isDate;
+    
+    // Show the modal
+    editModal.show();
+}
+
+// Save changes to the server
+async function saveChanges(employeeId, field, newValue, cell, originalValue, isDate) {
+    if (newValue === (isDate ? formatDateForInput(originalValue) : originalValue)) {
+        cell.textContent = originalValue === '-' ? '' : originalValue;
+        cell.classList.remove('editing');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/employee/${employeeId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                [field]: newValue || null
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            // Update the cell with the new value
+            if (isDate) {
+                cell.textContent = newValue ? formatDateForDisplay(newValue) : '-';
+            } else {
+                cell.textContent = newValue || '-';
+            }
+            
+            // If we updated the full name, update it in the action buttons tooltip
+            if (field === 'full_name') {
+                const editBtn = cell.closest('tr').querySelector('.edit-employee');
+                if (editBtn) {
+                    editBtn.title = `Editar ${newValue}`;
+                }
+            }
+            
+            // If we updated a date field that affects the current phase, update the phase indicator
+            const dateFields = ['admission_date', 'integration_start', 'integration_end', 
+                               'normative_start', 'normative_end', 'technical_course_start', 
+                               'technical_course_end', 'double_start', 'double_end'];
+            
+            if (dateFields.includes(field) && result.employee && result.employee.current_phase) {
+                const phaseCell = cell.closest('tr').querySelector('.phase-cell');
+                if (phaseCell) {
+                    const phase = result.employee.current_phase;
+                    let phaseClass = 'phase-inactive';
+                    
+                    if (phase === 'Integração') phaseClass = 'phase-integration';
+                    else if (phase === 'Normativo') phaseClass = 'phase-normative';
+                    else if (phase === 'Curso Técnico') phaseClass = 'phase-technical';
+                    else if (phase === 'Duplado') phaseClass = 'phase-double';
+                    
+                    phaseCell.innerHTML = `<span class="phase-indicator ${phaseClass}">${phase}</span>`;
+                }
+            }
+            
+            showToast('Sucesso', 'Dados atualizados com sucesso', 'success');
+        } else {
+            throw new Error(result.error || 'Erro ao atualizar dados');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        cell.textContent = originalValue === '-' ? '' : originalValue;
+        showToast('Erro', error.message || 'Erro ao salvar alterações', 'danger');
+    }
+    
+    cell.classList.remove('editing');
+}
+
+// Show toast notification
+function showToast(title, message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer');
+    
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                <strong>${title}</strong><br>
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Fechar"></button>
+        </div>
+    `;
+    
+    // Add to container
+    toastContainer.appendChild(toast);
+    
+    // Initialize and show toast
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    // Remove toast after it's hidden
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+    
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+        bsToast.hide();
+    }, 3000);
+}
+
+// Variáveis globais para controle de ordenação e filtragem
+let currentSort = { field: null, direction: 'asc' };
+let allEmployees = [];
+
+// Função para formatar datas para comparação
+function formatDateForSort(dateStr) {
+    if (!dateStr || dateStr === '-') return null;
+    const [day, month, year] = dateStr.split('/');
+    return new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+}
+
+// Função para ordenar a tabela
+function sortTable(field, direction = null) {
+    const tbody = document.querySelector('#employeesTable tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    // Se não houver direção especificada, determinar com base no estado atual
+    if (!direction) {
+        if (currentSort.field === field) {
+            // Alternar entre asc e desc se clicar na mesma coluna
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            // Nova coluna, começar com ordem ascendente
+            currentSort.field = field;
+            currentSort.direction = 'asc';
+        }
+    } else {
+        currentSort.field = field;
+        currentSort.direction = direction;
+    }
+    
+    // Usar a direção atualizada
+    const sortDirection = direction || currentSort.direction;
+    
+    rows.sort((a, b) => {
+        const aCell = a.querySelector(`[data-field="${field}"]`);
+        const bCell = b.querySelector(`[data-field="${field}"]`);
+        
+        if (!aCell || !bCell) return 0;
+        
+        let aValue = aCell.textContent.trim();
+        let bValue = bCell.textContent.trim();
+        
+        // Tratamento especial para datas
+        if (field.includes('date') || field.includes('inicio') || field.includes('termino')) {
+            aValue = formatDateForSort(aValue);
+            bValue = formatDateForSort(bValue);
+            
+            if (aValue === null && bValue === null) return 0;
+            if (aValue === null) return sortDirection === 'asc' ? 1 : -1;
+            if (bValue === null) return sortDirection === 'asc' ? -1 : 1;
+            
+            return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+        
+        // Tratamento para valores numéricos
+        if (!isNaN(aValue) && !isNaN(bValue) && aValue !== '' && bValue !== '') {
+            return sortDirection === 'asc' 
+                ? parseFloat(aValue) - parseFloat(bValue)
+                : parseFloat(bValue) - parseFloat(aValue);
+        }
+        
+        // Ordenação padrão para texto
+        if (aValue === '') return sortDirection === 'asc' ? 1 : -1;
+        if (bValue === '') return sortDirection === 'asc' ? -1 : 1;
+        
+        return sortDirection === 'asc'
+            ? aValue.localeCompare(bValue, 'pt-BR', { sensitivity: 'base' })
+            : bValue.localeCompare(aValue, 'pt-BR', { sensitivity: 'base' });
+    });
+    
+    // Reordenar as linhas na tabela
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // Atualizar ícones de ordenação
+    updateSortIcons(field, sortDirection);
+}
+
+// Atualizar ícones de ordenação
+function updateSortIcons(field, direction) {
+    document.querySelectorAll('.sortable').forEach(header => {
+        header.classList.remove('sort-asc', 'sort-desc');
+        const icon = header.querySelector('.sort-icon');
+        if (header.dataset.sort === field) {
+            header.classList.add(`sort-${direction}`);
+            icon.classList.remove('bi-arrow-down-up');
+            icon.classList.add(direction === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down');
+        } else {
+            icon.classList.remove('bi-arrow-up', 'bi-arrow-down');
+            icon.classList.add('bi-arrow-down-up');
+        }
+    });
+}
+
+// Função para formatar a exibição das opções no dropdown
+function formatOption(option) {
+    if (!option.id) return option.text;
+    return $('<span>').text(option.text);
+}
+
+// Função para formatar a exibição dos itens selecionados
+function formatOptionSelection(option) {
+    if (!option.id) return option.text;
+    return $('<span>').text(option.text);
+}
+
+// Função para filtrar a tabela
+function filterTable() {
+    const searchTerms = $('#searchInput').val() || [];
+    const searchField = $('#searchField').val();
+    const rows = document.querySelectorAll('#employeesTable tbody tr');
+    
+    // Se não houver termo de pesquisa, mostrar todas as linhas
+    if (searchTerms.length === 0) {
+        rows.forEach(row => {
+            row.style.display = '';
+        });
+        return;
+    }
+    
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td[data-field]');
+        
+        // Se for busca em todos os campos
+        if (searchField === 'all') {
+            let found = false;
+            cells.forEach(cell => {
+                const cellText = cell.textContent.toLowerCase();
+                if (searchTerms.some(term => cellText.includes(term.toLowerCase()))) {
+                    found = true;
+                }
+            });
+            row.style.display = found ? '' : 'none';
+        } 
+        // Se for busca em um campo específico
+        else {
+            const cell = row.querySelector(`[data-field="${searchField}"]`);
+            if (cell) {
+                const cellText = cell.textContent.toLowerCase();
+                const matchesAnyTerm = searchTerms.some(term => cellText.includes(term.toLowerCase()));
+                row.style.display = matchesAnyTerm ? '' : 'none';
+            } else {
+                row.style.display = 'none';
+            }
+        }
+    });
+}
+
+// Variável para controlar a visibilidade dos itens selecionados
+let showSelectedItems = true;
+
+// Atualizar a exibição dos itens selecionados
+function updateSelectedItemsDisplay() {
+    const searchInput = $('#searchInput');
+    const selectedValues = searchInput.val() || [];
+    const selectedCount = selectedValues.length;
+    
+    if (selectedCount > 0) {
+        $('#selectedItemsCount').text(selectedCount);
+        $('#selectedCount').show();
+        $('#clearSearch, #applySearch').show();
+        
+        // Atualizar a visibilidade dos itens selecionados
+        if (showSelectedItems) {
+            searchInput.next('.select2-container').find('.select2-selection--multiple')
+                .css('height', 'auto').css('max-height', '120px').css('overflow-y', 'auto');
+            $('#showSelectedItems').text('(ocultar)');
+        } else {
+            searchInput.next('.select2-container').find('.select2-selection--multiple')
+                .css('height', '38px').css('overflow', 'hidden');
+            $('#showSelectedItems').text('(mostrar)');
+        }
+    } else {
+        $('#selectedCount').hide();
+        $('#clearSearch, #applySearch').hide();
+        showSelectedItems = true; // Reset para mostrar itens na próxima seleção
+    }
+}
+
+// Função para carregar as opções do campo de pesquisa
+function loadSearchOptions(field) {
+    const uniqueValues = new Set();
+    const searchInput = $('#searchInput');
+    
+    // Manter os valores selecionados atuais
+    const selectedValues = searchInput.val() || [];
+    
+    // Limpar o campo de pesquisa, mas manter os valores selecionados
+    searchInput.empty();
+    
+    // Se não for um campo de seleção (campo de texto livre)
+    if (selectedValues.length > 0 && !Array.isArray(selectedValues[0])) {
+        searchInput.val(selectedValues).trigger('change');
+        return;
+    }
+    
+    // Coletar valores únicos do campo selecionado
+    allEmployees.forEach(row => {
+        const cell = row.querySelector(`[data-field="${field}"]`);
+        if (cell) {
+            const value = cell.textContent.trim();
+            if (value) {
+                uniqueValues.add(value);
+            }
+        }
+    });
+    
+    // Ordenar os valores
+    const sortedValues = Array.from(uniqueValues).sort();
+    
+    // Adicionar as opções ao select
+    const options = sortedValues.map(value => ({
+        id: value,
+        text: value
+    }));
+    
+    // Configuração do Select2 para seleção múltipla
+    searchInput.select2({
+        theme: 'bootstrap-5',
+        language: 'pt-BR',
+        placeholder: field === 'all' ? 'Digite para pesquisar...' : `Digite para pesquisar...`,
+        data: options,
+        allowClear: true,
+        multiple: true,
+        closeOnSelect: false,
+        width: '100%',
+        dropdownAutoWidth: true,
+        templateResult: formatOption,
+        templateSelection: formatOption,
+        dropdownParent: $('.search-container')
+    });
+    
+    // Atualizar a exibição quando os itens selecionados mudarem
+    searchInput.off('change').on('change', function() {
+        updateSelectedItemsDisplay();
+    });
+    
+    // Mostrar/ocultar itens selecionados
+    $('#showSelectedItems').off('click').on('click', function(e) {
+        e.preventDefault();
+        showSelectedItems = !showSelectedItems;
+        updateSelectedItemsDisplay();
+    });
+    
+    // Botão de concluir
+    $('#applySearch').off('click').on('click', function() {
+        showSelectedItems = false;
+        updateSelectedItemsDisplay();
+        searchInput.select2('close');
+    });
+    
+    // Botão de limpar
+    $('#clearSearch').off('click').on('click', function() {
+        searchInput.val(null).trigger('change');
+        showSelectedItems = true;
+        updateSelectedItemsDisplay();
+    });
+    
+    // Restaurar valores selecionados e atualizar a exibição
+    if (selectedValues.length > 0) {
+        searchInput.val(selectedValues).trigger('change');
+        updateSelectedItemsDisplay();
+    }
+}
+
+// Limpar todos os filtros
+$('#clearAllFilters').on('click', function() {
+    // Limpar campo de pesquisa
+    $('#searchInput').val(null).trigger('change');
+    
+    // Limpar seleção do campo de pesquisa
+    $('#searchField').val('all').trigger('change');
+    
+    // Limpar todos os filtros de data
+    $('.date-picker').val('');
+    
+    // Limpar todos os selects de filtro
+    $('.filter-select').val('todos').trigger('change');
+    
+    // Limpar todos os campos de texto
+    $('.filter-text').val('');
+    
+    // Mostrar todas as linhas da tabela
+    $('table tbody tr').show();
+    
+    // Resetar contador de itens selecionados
+    $('#selectedCount').hide();
+    
+    // Resetar variáveis de controle
+    showSelectedItems = true;
+    
+    // Fechar qualquer dropdown aberto
+    $('.filter-options').hide();
+    
+    // Fechar o dropdown do Select2 se estiver aberto
+    $('.select2-container--open').remove();
+    
+    // Focar no campo de pesquisa
+    $('#searchField').focus();
+});
+
+// Fechar outros filtros ao abrir um novo
+function closeOtherFilters(currentFilter) {
+    document.querySelectorAll('.filter-options').forEach(filter => {
+        if (filter !== currentFilter) {
+            filter.style.display = 'none';
+        }
+    });
+    
+    // Adiciona/remove evento de clique fora do filtro
+    if (currentFilter.style.display === 'block') {
+        // Remove event listeners antigos para evitar duplicação
+        document.removeEventListener('click', handleClickOutside);
+        
+        // Adiciona novo event listener
+        setTimeout(() => {
+            document.addEventListener('click', handleClickOutside);
+        }, 0);
+    } else {
+        document.removeEventListener('click', handleClickOutside);
+    }
+}
+
+// Função para fechar o filtro ao clicar fora
+function handleClickOutside(event) {
+    const isFilterOptions = event.target.closest('.filter-options');
+    const isFilterIcon = event.target.closest('.filter-icon');
+    
+    if (!isFilterOptions && !isFilterIcon) {
+        document.querySelectorAll('.filter-options').forEach(filter => {
+            filter.style.display = 'none';
+        });
+        document.removeEventListener('click', handleClickOutside);
+    }
+}
+
+// Inicializar a tabela
+function initializeTable() {
+    // Armazenar todos os funcionários para filtragem
+    allEmployees = Array.from(document.querySelectorAll('#employeesTable tbody tr'));
+    
+    // Inicializar o Select2 para o campo de pesquisa
+    loadSearchOptions($('#searchField').val());
+    
+    // Atualizar a tabela quando um valor for selecionado
+    $('#searchInput').on('select2:select', function(e) {
+        filterTable();
+    });
+    
+    // Atualizar as opções quando o campo de pesquisa mudar
+    $('#searchField').on('change', function() {
+        const selectedField = $(this).val();
+        loadSearchOptions(selectedField);
+        filterTable();
+    });
+    
+    // Inicializar filtros de coluna
+    initializeColumnFilters();
+    
+    // Fechar filtro ao pressionar Esc
+    $(document).on('keydown', function(e) {
+        if (e.key === 'Escape') {
+            $('.filter-options').hide();
+        }
+    });
+    
+    // Adicionar eventos de clique para ordenação
+    document.querySelectorAll('.sortable').forEach(header => {
+        header.addEventListener('click', (e) => {
+            // Evitar que o clique no ícone de ordenação dispare o evento duas vezes
+            if (e.target.classList.contains('sort-icon')) {
+                return;
+            }
+            const field = header.dataset.sort;
+            sortTable(field);
+        });
+        
+        // Adicionar evento de clique específico para o ícone de ordenação
+        const sortIcon = header.querySelector('.sort-icon');
+        if (sortIcon) {
+            sortIcon.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const field = header.dataset.sort;
+                sortTable(field);
+            });
+        }
+    });
+    
+    // Limpar pesquisa
+    document.getElementById('clearSearch').addEventListener('click', () => {
+        $('#searchInput').val(null).trigger('change');
+        filterTable();
+    });
+    
+    // Atualizar opções quando o campo de pesquisa mudar
+    document.getElementById('searchField').addEventListener('change', () => {
+        $('#searchInput').val(null).trigger('change');
+    });
+}
+
+// Função para obter todos os parâmetros de filtro atuais
+function getCurrentFilters() {
+    const filters = {};
+    
+    // Função auxiliar para obter o valor do filtro de um dropdown específico
+    function getFilterValue(field) {
+        console.log(`Buscando valor para o campo: ${field}`);
+        
+        // Procurar o container do filtro de duas maneiras diferentes
+        let filterContainer = document.querySelector(`.filter-dropdown-content[data-field="${field}"]`);
+        
+        // Se não encontrar, tenta encontrar pelo texto do cabeçalho
+        if (!filterContainer) {
+            console.log(`Filtro ${field} não encontrado pelo data-field, tentando por texto...`);
+            const headers = document.querySelectorAll('th');
+            for (const header of headers) {
+                const span = header.querySelector('span');
+                if (span && span.textContent.trim().toLowerCase() === field.replace('_', ' ').toLowerCase()) {
+                    filterContainer = header.querySelector('.filter-dropdown-content');
+                    if (filterContainer) break;
+                }
+            }
+        }
+        
+        if (!filterContainer) {
+            console.log(`Container do filtro ${field} não encontrado`);
+            return null;
+        }
+        
+        console.log(`Container do filtro ${field} encontrado:`, filterContainer);
+        
+        // Verificar se há um input de texto com valor
+        const textInput = filterContainer.querySelector('input[type="text"]');
+        if (textInput) {
+            console.log(`Input de texto encontrado para ${field}:`, textInput.value);
+            if (textInput.value) {
+                return textInput.value;
+            }
+        }
+        
+        // Verificar se há checkboxes selecionados
+        const checkboxes = filterContainer.querySelectorAll('input[type="checkbox"]:checked');
+        if (checkboxes.length > 0) {
+            const selectedValues = Array.from(checkboxes).map(cb => {
+                console.log(`Checkbox encontrado: ${cb.value}`);
+                return cb.value;
+            }).filter(v => v !== 'todos');
+            
+            console.log(`Valores selecionados para ${field}:`, selectedValues);
+            
+            if (selectedValues.length > 0) {
+                return selectedValues.join(',');
+            }
+        }
+        
+        // Verificar se há um select com valor
+        const select = filterContainer.querySelector('select');
+        if (select) {
+            console.log(`Select encontrado para ${field}:`, select.value);
+            if (select.value && select.value !== 'todos') {
+                return select.value;
+            }
+        }
+        
+        console.log(`Nenhum valor encontrado para o campo ${field}`);
+        return null;
+    }
+    
+    // Coletar filtros de texto e seleção para todos os campos conhecidos
+    const filterFields = [
+        'registration', 'full_name', 'role', 'employee_type', 'status',
+        'course_status', 'team', 'course_location', 'manager',
+        'corporate_manager', 'instructor', 'operation_ready'
+    ];
+    
+    filterFields.forEach(field => {
+        const value = getFilterValue(field);
+        if (value) {
+            filters[field] = value;
+        }
+    });
+    
+    // Coletar filtros de data
+    document.querySelectorAll('.date-picker').forEach(input => {
+        if (input.value) {
+            const field = input.getAttribute('data-field');
+            const dateType = input.getAttribute('data-date-type');
+            if (field && dateType) {
+                filters[`${field}_${dateType}`] = input.value;
+            }
+        }
+    });
+    
+    // Coletar os valores da barra de pesquisa global
+    const searchField = document.getElementById('searchField');
+    const searchInput = $('#searchInput');
+    if (searchField && searchField.value && searchInput && searchInput.val() && searchInput.val().length > 0) {
+        const searchValues = searchInput.val();
+        if (Array.isArray(searchValues) && searchValues.length > 0) {
+            filters[searchField.value] = searchValues.join(',');
+        } else if (searchValues) {
+            filters[searchField.value] = searchValues;
+        }
+    }
+    
+    console.log('Filtros ativos:', filters); // Para depuração
+    return filters;
+}
+
+// Função para exportar para Excel
+function exportToExcel() {
+    // Mostrar loading
+    const exportBtn = document.getElementById('exportExcelBtn');
+    const originalText = exportBtn.innerHTML;
+    exportBtn.disabled = true;
+    exportBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Exportando...';
+    
+    try {
+        // Obter todos os filtros atuais
+        const filters = getCurrentFilters();
+        
+        // Construir a URL com os parâmetros de filtro
+        const url = new URL(window.location.origin + "{{ url_for_brand('export_employees_excel', brand=brand) }}");
+        
+        // Adicionar os filtros como parâmetros de consulta
+        Object.entries(filters).forEach(([key, value]) => {
+            url.searchParams.append(key, value);
+        });
+        
+        // Disparar o download
+        window.location.href = url.toString();
+    } catch (error) {
+        console.error('Erro ao exportar para Excel:', error);
+        showToast('Erro', 'Ocorreu um erro ao exportar para Excel. Por favor, tente novamente.', 'error');
+    } finally {
+        // Restaurar o botão
+        setTimeout(() => {
+            exportBtn.disabled = false;
+            exportBtn.innerHTML = originalText;
+        }, 1000);
+    }
+}
+
+$(document).ready(function() {
+    initializeTable();
+    
+    // Adicionar evento de clique para o botão de exportar para Excel
+    document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
+    
+    // Adicionar evento de clique para o botão de limpar pesquisa
+    $('#clearSearch').on('click', function() {
+        $('#searchInput').val(null).trigger('change');
+        filterTable();
+    });
+    
+    // Botão de limpar filtros foi movido para dentro do dropdown-content
+});
+
+// Atualizar opções quando o campo de pesquisa mudar
+document.getElementById('searchField').addEventListener('change', () => {
+    $('#searchInput').val(null).trigger('change');
+});
+
+// Inicializar filtros de coluna
+function initializeColumnFilters() {
+    // Primeiro, configurar o comportamento de abrir/fechar
+    $('.filter-dropdown').each(function() {
+        const $dropdown = $(this);
+        const $filterIcon = $dropdown.find('.filter-icon');
+        const $content = $dropdown.find('.filter-dropdown-content');
+        
+        // Garantir que o dropdown tenha um ID único
+        if (!$content.attr('id')) {
+            $content.attr('id', 'filter-dropdown-' + Math.random().toString(36).substr(2, 9));
+        }
+
+        // Função para fechar o dropdown
+        function closeDropdown() {
+            $dropdown.removeClass('active');
+            $dropdown.append($content);
+            $content.removeAttr('style');
+            $(document).off('click.closeFilter');
+            $(document).off('keydown.closeFilter');
+        }
+
+        // Configurar clique no ícone de filtro
+        $filterIcon.off('click').on('click', function(e) {
+            e.stopPropagation();
+            
+            // Fechar outros dropdowns
+            $('.filter-dropdown').not($dropdown).removeClass('active');
+            
+            // Alternar o dropdown atual
+            const wasActive = $dropdown.hasClass('active');
+            $dropdown.toggleClass('active');
+            
+            // Se o dropdown estava fechado e agora está aberto
+            if ($dropdown.hasClass('active') && !wasActive) {
+                // Posicionar o dropdown alinhado à direita da tela
+                const iconRect = $filterIcon[0].getBoundingClientRect();
+                const scrollY = window.scrollY || document.documentElement.scrollTop;
+                const dropdownWidth = 320; // Largura fixa do dropdown
+                const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+                
+                // Calcular a posição Y para ficar abaixo do cabeçalho
+                const topPosition = iconRect.bottom + scrollY + 2; // 2px abaixo do ícone
+                
+                // Garantir que o dropdown não saia da tela
+                const maxHeight = window.innerHeight - topPosition - 20; // 20px de margem inferior
+                const finalHeight = Math.min(400, maxHeight); // Altura máxima de 400px ou o que couber na tela
+
+                // Aplicar estilos ao dropdown
+                $content.css({
+                    'display': 'block',
+                    'position': 'fixed',
+                    'top': topPosition + 'px',
+                    'right': '20px',
+                    'left': 'auto',
+                    'z-index': '99999',
+                    'width': dropdownWidth + 'px',
+                    'max-height': finalHeight + 'px',
+                    'overflow-y': 'auto',
+                    'transform': 'none',
+                    'border': '1px solid #dee2e6',
+                    'border-radius': '4px',
+                    'box-shadow': '0 2px 10px rgba(0, 0, 0, 0.15)'
+                });
+
+                // Mover para o body para evitar problemas de overflow
+                $('body').append($content);
+
+                // Ajustar posição se o dropdown sair da tela à direita
+                const contentRect = $content[0].getBoundingClientRect();
+                if (contentRect.right > window.innerWidth) {
+                    $content.css('left', (window.innerWidth - contentRect.width - 10) + 'px');
+                }
+
+                // Ajustar posição se o dropdown sair da tela em baixo
+                if (contentRect.bottom > window.innerHeight) {
+                    $content.css('top', (iconRect.top + scrollY - contentRect.height - 5) + 'px');
+                }
+
+                // Adicionar evento de clique fora do dropdown
+                setTimeout(() => {
+                    $(document).on('click.closeFilter', function(e) {
+                        // Verificar se o clique foi fora do dropdown e do ícone
+                        if (!$(e.target).closest('.filter-dropdown-content').length && 
+                            !$(e.target).closest('.filter-icon').length) {
+                            closeDropdown();
+                        }
+                    });
+                }, 0);
+            } else {
+                // Fechar o dropdown
+                closeDropdown();
+            }
+        });
+
+        // Fechar ao pressionar ESC
+        $(document).off('keydown.closeFilter').on('keydown.closeFilter', function(e) {
+            if (e.key === 'Escape') {
+                closeDropdown();
+            }
+        });
+        
+        // Fechar ao clicar fora ou pressionar ESC
+        function closeDropdown() {
+            $dropdown.removeClass('active');
+            $dropdown.append($content);
+            $content.removeAttr('style');
+            $(document).off('click.closeFilter');
+            $(document).off('keydown.closeFilter');
+        }
+        
+        $(document).off('click.closeFilter').on('click.closeFilter', function(e) {
+            if (!$(e.target).closest('.filter-dropdown').length && !$(e.target).closest('.filter-dropdown-content').length) {
+                closeDropdown();
+            }
+        });
+        
+        // Fechar ao pressionar ESC
+        $(document).off('keydown.closeFilter').on('keydown.closeFilter', function(e) {
+            if (e.key === 'Escape') {
+                closeDropdown();
+            }
+        });
+    });
+    
+    // Configurar os filtros de conteúdo
+    $('.filter-dropdown-content').each(function() {
+        const field = $(this).data('field');
+        const container = $(this).find('.filter-options-container');
+        const searchInput = $(this).find('input[type="text"]');
+        
+        // Coletar valores únicos para esta coluna
+        const uniqueValues = new Set();
+        
+        $(`#employeesTable tbody tr`).each(function() {
+            const cell = $(this).find(`td[data-field="${field}"]`);
+            if (cell.length) {
+                const value = cell.text().trim();
+                if (value) {
+                    uniqueValues.add(value);
+                }
+            }
+        });
+        
+        // Ordenar os valores
+        const sortedValues = Array.from(uniqueValues).sort((a, b) => a.localeCompare(b));
+        
+        // Limpar opções existentes
+        container.empty();
+        
+        // Adicionar opções ao container
+        sortedValues.forEach(value => {
+            if (value) {
+                const option = $(`
+                    <div class="form-check">
+                        <input class="form-check-input column-filter" type="checkbox" 
+                               value="${value.replace(/"/g, '&quot;')}" 
+                               id="${field}-${value.toString().replace(/[^a-zA-Z0-9]/g, '-')}"
+                               data-field="${field}">
+                        <label class="form-check-label" for="${field}-${value.toString().replace(/[^a-zA-Z0-9]/g, '-')}">
+                            ${value}
+                        </label>
+                    </div>
+                `);
+                container.append(option);
+            }
+        });
+        
+        // Adicionar evento de pesquisa para o campo de texto
+        searchInput.off('input').on('input', function() {
+            const searchTerm = $(this).val().toLowerCase();
+            container.find('.form-check').each(function() {
+                const text = $(this).text().toLowerCase();
+                $(this).toggle(text.includes(searchTerm));
+            });
+        });
+    });
+    
+    // Adicionar evento de mudança para os checkboxes
+    $(document).off('change', '.column-filter').on('change', '.column-filter', function() {
+        applyColumnFilters();
+    });
+    
+    // Configurar o cabeçalho e botão de fechar do dropdown
+    $('.filter-dropdown-content').each(function() {
+        const $dropdown = $(this).closest('.filter-dropdown');
+        const $content = $(this);
+        
+        // Limpar qualquer cabeçalho existente
+        $content.find('.filter-header-container, .clear-filters-btn').remove();
+        
+        // Criar cabeçalho
+        const $headerContainer = $('<div class="filter-header-container"></div>');
+        const $header = $('<div class="d-flex justify-content-between align-items-center mb-3"></div>');
+        const $title = $('<h6 class="mb-0">Filtrar por</h6>');
+        const $closeBtn = $('<button type="button" class="btn-close" aria-label="Fechar"></button>');
+        
+        // Botão de limpar filtros
+        const $clearButton = $('<button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-3 clear-filters-btn"><i class="bi bi-x-lg me-2"></i>Limpar Filtros</button>');
+        
+        // Evento para fechar o dropdown
+        $closeBtn.off('click').on('click', function(e) {
+            e.stopPropagation();
+            $dropdown.removeClass('active');
+            $dropdown.append($content);
+            $content.removeAttr('style');
+            return false;
+        });
+        
+        // Evento para limpar os filtros
+        $clearButton.off('click').on('click', function(e) {
+            e.stopPropagation();
+            $content.find('.column-filter').prop('checked', false);
+            applyColumnFilters();
+            return false;
+        });
+        
+        // Montar a estrutura
+        $header.append($title, $closeBtn);
+        $headerContainer.append($header, $clearButton);
+        $content.prepend($headerContainer);
+    });
+}
+
+// Aplicar filtros de coluna
+function applyColumnFilters() {
+    const filters = {};
+    
+    // Coletar todos os filtros ativos
+    $('.column-filter:checked').each(function() {
+        const field = $(this).data('field');
+        const value = $(this).val();
+        
+        if (!filters[field]) {
+            filters[field] = new Set();
+        }
+        filters[field].add(value);
+    });
+    
+    // Mostrar todas as linhas primeiro
+    $('#employeesTable tbody tr').show();
+    
+    // Aplicar filtros apenas se houver algum ativo
+    if (Object.keys(filters).length > 0) {
+        // Primeiro, obter todas as linhas visíveis (ainda sem filtro)
+        const allRows = $('#employeesTable tbody tr').toArray();
+        
+        // Aplicar filtros e marcar linhas visíveis
+        const visibleRows = allRows.filter(row => {
+            let showRow = true;
+            
+            // Verificar cada filtro ativo
+            for (const [field, values] of Object.entries(filters)) {
+                const cell = $(row).find(`td[data-field="${field}"]`);
+                if (cell.length) {
+                    const cellText = cell.text().trim();
+                    
+                    // Se o valor da célula não estiver nos valores permitidos, ocultar a linha
+                    if (!Array.from(values).includes(cellText)) {
+                        showRow = false;
+                        break;
+                    }
+                } else {
+                    // Se a coluna não existir na linha, ocultar a linha
+                    showRow = false;
+                    break;
+                }
+            }
+            
+            // Retornar true se a linha deve ser mostrada
+            return showRow;
+        });
+        
+        // Atualizar visibilidade das linhas
+        allRows.forEach(row => {
+            $(row).toggle(visibleRows.includes(row));
+        });
+        
+        // Atualizar opções disponíveis nos filtros
+        updateFilterOptions(visibleRows, filters);
+    } else {
+        // Se não houver filtros ativos, atualizar todas as opções
+        updateFilterOptions($('#employeesTable tbody tr').toArray(), {});
+    }
+    
+    // Atualizar contagem de resultados
+    updateResultCount();
+}
+
+// Atualizar opções disponíveis nos filtros com base nas linhas visíveis
+function updateFilterOptions(visibleRows, activeFilters) {
+    // Obter todos os campos de filtro
+    const allFields = new Set();
+    $('.filter-dropdown-content').each(function() {
+        const field = $(this).data('field');
+        if (field) allFields.add(field);
+    });
+    
+    // Para cada campo de filtro
+    allFields.forEach(field => {
+        // Se este campo já tiver um filtro ativo, não atualizamos suas opções
+        if (activeFilters[field]) return;
+        
+        const dropdown = $(`.filter-dropdown-content[data-field="${field}"]`);
+        if (!dropdown.length) return;
+        
+        const container = dropdown.find('.filter-options-container');
+        if (!container.length) return;
+        
+        // Coletar valores únicos das linhas visíveis para este campo
+        const uniqueValues = new Set();
+        visibleRows.forEach(row => {
+            const cell = $(row).find(`td[data-field="${field}"]`);
+            if (cell.length) {
+                const value = cell.text().trim();
+                if (value) {
+                    uniqueValues.add(value);
+                }
+            }
+        });
+        
+        // Atualizar cada checkbox deste filtro
+        container.find('.form-check').each(function() {
+            const checkbox = $(this).find('input[type="checkbox"]');
+            const value = checkbox.val();
+            const isChecked = checkbox.prop('checked');
+            
+            // Se o checkbox estiver marcado, mantê-lo visível e marcado
+            if (isChecked) {
+                $(this).show();
+                checkbox.prop('disabled', false);
+                return;
+            }
+            
+            // Verificar se o valor existe nas linhas visíveis
+            const isVisible = uniqueValues.has(value);
+            
+            if (isVisible) {
+                $(this).show();
+                checkbox.prop('disabled', false);
+            } else {
+                $(this).hide();
+                checkbox.prop('checked', false);
+                checkbox.prop('disabled', true);
+            }
+        });
+        
+        // Verificar se há opções visíveis
+        const hasVisibleOptions = container.find('.form-check:visible').length > 0;
+        
+        // Mostrar/ocultar mensagem de sem opções
+        let noOptionsMsg = container.find('.no-options-msg');
+        if (!hasVisibleOptions) {
+            if (noOptionsMsg.length === 0) {
+                container.append('<div class="text-muted small p-2 no-options-msg">Nenhuma opção disponível com os filtros atuais</div>');
+            }
+        } else {
+            noOptionsMsg.remove();
+        }
+    });
+}
+
+// Atualizar a contagem de resultados
+function updateResultCount() {
+    const visibleCount = $('#employeesTable tbody tr:visible').length;
+    const totalCount = allEmployees.length;
+    $('#resultCount').text(`Mostrando ${visibleCount} de ${totalCount} registros`);
+}
+
+// Limpar todos os filtros de coluna
+function clearColumnFilters() {
+    $('.column-filter').prop('checked', false);
+    applyColumnFilters();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar a tabela
+    initializeTable();
+    
+    // Make table cells open edit modal on click
+    document.querySelectorAll('td[data-field]').forEach(cell => {
+        const field = cell.getAttribute('data-field');
+        const employeeId = cell.closest('tr').getAttribute('data-employee-id');
+        const isDate = cell.classList.contains('date-field');
+        
+        cell.addEventListener('click', (e) => {
+            // Don't open modal if clicking on a link, button, or input
+            if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') {
+                return;
+            }
+            
+            showEditModal(cell, field, employeeId, isDate);
+        });
+    });
+    
+    // Handle save button click in the modal
+    document.getElementById('saveChangesBtn').addEventListener('click', async function() {
+        const field = document.getElementById('editFieldName').value;
+        const employeeId = document.getElementById('editEmployeeId').value;
+        const isDate = document.getElementById('editDateFieldValue').classList.contains('d-none') ? false : true;
+        const isSelect = document.getElementById('editSelectValue').classList.contains('d-none') ? false : true;
+        
+        let newValue = '';
+        let inputElement = 'editFieldValue';
+        
+        if (isDate) {
+            inputElement = 'editDateFieldValue';
+            newValue = document.getElementById(inputElement).value.trim();
+        } else if (isSelect) {
+            inputElement = 'editSelectValue';
+            const selectElement = document.getElementById(inputElement);
+            newValue = selectElement.options[selectElement.selectedIndex].value.trim();
+        } else {
+            newValue = document.getElementById(inputElement).value.trim();
+        }
+        
+        const editModal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
+        const cell = editModal._cell;
+        const originalValue = editModal._originalValue;
+        
+        await saveChanges(employeeId, field, newValue, cell, originalValue, isDate);
+        
+        // Close the modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
+        modal.hide();
+    });
+    
+    // Reset modal when hidden
+    document.getElementById('editModal').addEventListener('hidden.bs.modal', function () {
+        document.getElementById('editFieldValue').value = '';
+        document.getElementById('editDateFieldValue').value = '';
+        document.getElementById('editFieldName').value = '';
+        document.getElementById('editEmployeeId').value = '';
+    });
+    
+    // Excel upload functionality
+    const excelFile = document.getElementById('excelFile');
+    const uploadButton = document.getElementById('uploadButton');
+    const uploadStatus = document.getElementById('uploadStatus');
+    
+    if (excelFile && uploadButton) {
+        excelFile.addEventListener('change', function() {
+            uploadButton.disabled = !this.files.length;
+        });
+        
+        uploadButton.addEventListener('click', async function() {
+            if (!excelFile.files.length) return;
+            
+            const formData = new FormData();
+            formData.append('file', excelFile.files[0]);
+            
+            uploadButton.disabled = true;
+            uploadButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Importando...';
+            uploadStatus.classList.add('d-none');
+            
+            try {
+                const response = await fetch('{{ url_for_brand("upload_file", brand=brand) }}', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                uploadStatus.textContent = result.message || result.error || 'Ocorreu um erro ao importar o arquivo.';
+                uploadStatus.className = 'alert ' + (response.ok ? 'alert-success' : 'alert-danger');
+                uploadStatus.classList.remove('d-none');
+                
+                if (response.ok) {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                }
+            } catch (error) {
+                uploadStatus.textContent = 'Erro ao processar a requisição.';
+                uploadStatus.className = 'alert alert-danger';
+                uploadStatus.classList.remove('d-none');
+            } finally {
+                uploadButton.disabled = false;
+                uploadButton.innerHTML = 'Importar';
+            }
+        });
+    }
+    // Close modal on successful upload
+    const modal = new bootstrap.Modal(document.getElementById('uploadModal'));
+    document.getElementById('uploadModal').addEventListener('hidden.bs.modal', function () {
+        excelFile.value = '';
+        uploadButton.disabled = true;
+        uploadStatus.className = 'd-none';
+    });
+
+    // Toggle select all checkboxes
+    document.addEventListener('change', function(e) {
+        // Handle select all checkbox
+        if (e.target && e.target.id === 'selectAllCheckbox') {
+            const isChecked = e.target.checked;
+            const checkboxes = document.querySelectorAll('.employee-checkbox:not(#selectAllCheckbox)');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+            updateDeleteButton();
+        }
+        
+        // Handle individual checkbox changes
+        if (e.target && e.target.classList.contains('employee-checkbox') && e.target.id !== 'selectAllCheckbox') {
+            updateDeleteButton();
+            updateSelectAllCheckbox();
+        }
+    });
+
+    // Update the select all checkbox based on individual checkboxes
+    function updateSelectAllCheckbox() {
+        const checkboxes = document.querySelectorAll('.employee-checkbox:not(#selectAllCheckbox)');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const allChecked = checkboxes.length > 0 && Array.from(checkboxes).every(checkbox => checkbox.checked);
+        selectAllCheckbox.checked = allChecked;
+    }
+
+    // Show/hide delete selected button based on selection
+    function updateDeleteButton() {
+        const deleteBtn = document.getElementById('deleteSelectedBtn');
+        const checkedBoxes = document.querySelectorAll('.employee-checkbox:checked:not(#selectAllCheckbox)');
+        
+        if (checkedBoxes.length > 0) {
+            deleteBtn.style.display = 'block';
+        } else {
+            deleteBtn.style.display = 'none';
+        }
+    }
+
+    // Handle delete selected button click
+    document.getElementById('deleteSelectedBtn').addEventListener('click', function() {
+        const checkedBoxes = document.querySelectorAll('.employee-checkbox:checked:not(#selectAllCheckbox)');
+        if (checkedBoxes.length === 0) return;
+        
+        // Set employee info in modal
+        const employeeNames = Array.from(checkedBoxes).map(checkbox => {
+            const row = checkbox.closest('tr');
+            return row.querySelector('td[data-field="full_name"]').textContent.trim();
+        }).join(', ');
+        
+        document.getElementById('deleteEmployeeRegistration').textContent = `${checkedBoxes.length} colaborador(es) selecionado(s)`;
+        document.getElementById('deleteEmployeeName').textContent = employeeNames;
+        
+        // Show the modal
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        
+        // Remove any existing click handlers to prevent multiple bindings
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        
+        // Handle confirm delete button click for multiple employees
+        newConfirmBtn.onclick = async function() {
+            try {
+                const employeeIds = Array.from(checkedBoxes).map(checkbox => checkbox.value);
+                const response = await fetch('/delete_employees', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ employeeIds })
+                });
+                
+                if (response.ok) {
+                    // Remove the rows from the table
+                    checkedBoxes.forEach(checkbox => {
+                        const row = checkbox.closest('tr');
+                        row.remove();
+                    });
+                    
+                    // Update the "Nenhum colaborador cadastrado" message if needed
+                    const tbody = document.querySelector('#employeesTable tbody');
+                    const hasRows = tbody.querySelector('tr[data-employee-id]');
+                    
+                    if (!hasRows) {
+                        const emptyRow = document.createElement('tr');
+                        emptyRow.id = 'noEmployeesRow';
+                        emptyRow.innerHTML = '<td colspan="28" class="text-center">Nenhum colaborador cadastrado</td>';
+                        tbody.appendChild(emptyRow);
+                    }
+                    
+                    showToast('Sucesso', `${employeeIds.length} colaborador(es) excluído(s) com sucesso`, 'success');
+                } else {
+                    const result = await response.json();
+                    throw new Error(result.error || 'Erro ao excluir colaboradores');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Erro', error.message || 'Erro ao excluir colaboradores', 'danger');
+            }
+            
+            // Hide the modal
+            deleteModal.hide();
+            
+            // Reset the select all checkbox and update the delete button
+            document.getElementById('selectAllCheckbox').checked = false;
+            updateDeleteButton();
+        };
+        
+        deleteModal.show();
+    });
+
+    // Função para atualizar as datas disponíveis no seletor de data exata
+    function updateAvailableDates(month, year) {
+        console.log(`Atualizando datas disponíveis para mês: ${month}, ano: ${year}`);
+        const exactDateSelect = document.getElementById('exactDateFilter');
+        if (!exactDateSelect) {
+            console.error('Elemento exactDateFilter não encontrado');
+            return;
+        }
+        
+        // Salvar a data atualmente selecionada
+        const currentValue = exactDateSelect.value;
+        
+        // Limpar opções atuais, mantendo a primeira opção
+        exactDateSelect.innerHTML = '<option value="">Selecione um dia</option>';
+        
+        // Se não houver mês/ano selecionado, não fazer nada
+        if (!month || !year) {
+            console.log('Mês ou ano não informado, limpando datas');
+            return;
+        }
+        
+        // Usar um Set para armazenar datas únicas
+        const uniqueDates = new Set();
+        const rows = document.querySelectorAll('#employeesTable tbody tr');
+        
+        console.log(`Procurando datas para mês ${month}/${year} em ${rows.length} linhas`);
+        
+        // Coletar todas as datas únicas para o mês/ano selecionado
+        rows.forEach((row, index) => {
+            const cell = row.querySelector('td[data-field="field_operation_date"]');
+            if (!cell) return;
+            
+            const dateText = cell.textContent.trim();
+            if (!dateText || dateText === '-') return;
+            
+            try {
+                const [day, cellMonth, cellYear] = dateText.split('/').map(Number);
+                if (cellYear === year && cellMonth === month) {
+                    const dateKey = `${String(day).padStart(2, '0')}`;
+                    const displayDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+                    const dateValue = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    
+                    // Usar o dia como chave para garantir unicidade
+                    if (!uniqueDates.has(dateKey)) {
+                        uniqueDates.add(dateKey);
+                        
+                        // Adicionar a opção imediatamente
+                        const option = document.createElement('option');
+                        option.value = dateValue;
+                        option.textContent = displayDate;
+                        exactDateSelect.appendChild(option);
+                        
+                        console.log(`Adicionada data: ${displayDate}`);
+                    }
+                }
+            } catch (e) {
+                console.error(`Erro ao processar data na linha ${index + 1}:`, dateText, e);
+            }
+        });
+        
+        console.log(`Total de datas únicas encontradas: ${uniqueDates.size}`);
+        
+        // Se não encontrou nenhuma data, adiciona uma mensagem
+        if (uniqueDates.size === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'Nenhuma data encontrada';
+            option.disabled = true;
+            exactDateSelect.appendChild(option);
+        }
+        
+        // Restaurar a seleção anterior se ainda estiver disponível
+        if (currentValue && Array.from(exactDateSelect.options).some(opt => opt.value === currentValue)) {
+            exactDateSelect.value = currentValue;
+        }
+        
+        // Se houver apenas uma data além da opção padrão, selecioná-la automaticamente
+        if (exactDateSelect.options.length === 2) {
+            exactDateSelect.selectedIndex = 1;
+            // Aplicar o filtro automaticamente
+            applyExactDateFilter();
+        }
+    }
+    
+    // Função para aplicar o filtro de mês/ano
+    function applyMonthYearFilter() {
+        console.log('Iniciando applyMonthYearFilter');
+        const monthYearSelect = document.getElementById('monthYearFilter');
+        if (!monthYearSelect) {
+            console.error('Elemento monthYearFilter não encontrado');
+            return;
+        }
+        
+        const monthYear = monthYearSelect.value;
+        console.log('Mês/Ano selecionado:', monthYear);
+        
+        const rows = document.querySelectorAll('#employeesTable tbody tr');
+        console.log('Total de linhas na tabela:', rows.length);
+        
+        // Se não houver mês/ano selecionado, limpar filtros
+        if (!monthYear) {
+            console.log('Nenhum mês/ano selecionado, limpando filtros');
+            const exactDateSelect = document.getElementById('exactDateFilter');
+            if (exactDateSelect) {
+                exactDateSelect.innerHTML = '<option value="">Selecione uma data</option>';
+            }
+            
+            // Mostrar todas as linhas
+            rows.forEach(row => row.style.display = '');
+            updateResultCount();
+            showToast('Info', 'Filtro removido. Mostrando todos os registros.', 'info');
+            return;
+        }
+        
+        const [year, month] = monthYear.split('-').map(Number);
+        
+        // Atualizar as datas disponíveis no seletor de data exata
+        updateAvailableDates(month, year);
+        
+        // Se houver apenas uma data, ela já foi selecionada automaticamente
+        // e o filtro já foi aplicado pela função updateAvailableDates
+        const exactDateSelect = document.getElementById('exactDateFilter');
+        if (exactDateSelect && exactDateSelect.value) {
+            console.log('Já há uma data selecionada, não é necessário aplicar o filtro de mês/ano');
+            return;
+        }
+        
+        // Se não houver data específica selecionada, aplicar o filtro de mês/ano
+        let hasMatches = false;
+        let matchCount = 0;
+        
+        rows.forEach((row, index) => {
+            const cell = row.querySelector('td[data-field="field_operation_date"]');
+            if (!cell) {
+                row.style.display = 'none';
+                return;
+            }
+            
+            const dateText = cell.textContent.trim();
+            
+            if (dateText === '-' || dateText === '') {
+                row.style.display = 'none';
+                return;
+            }
+            
+            try {
+                // Converter data do formato DD/MM/YYYY
+                const [day, cellMonth, cellYear] = dateText.split('/').map(Number);
+                
+                // Verificar se o mês e ano correspondem
+                if (cellYear === year && cellMonth === month) {
+                    row.style.display = '';
+                    hasMatches = true;
+                    matchCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            } catch (e) {
+                console.error(`Erro ao processar data na linha ${index + 1}:`, dateText, e);
+                row.style.display = 'none';
+            }
+        });
+        
+        console.log('Filtro por mês/ano concluído. Encontradas correspondências:', matchCount);
+        
+        // Fechar o dropdown após a seleção
+        const dropdown = document.querySelector('.filter-dropdown-content');
+        if (dropdown) dropdown.style.display = 'none';
+        
+        // Se não houver correspondências, mostrar mensagem
+        if (!hasMatches) {
+            console.log('Nenhuma correspondência encontrada para o mês/ano:', month, '/', year);
+            showToast('Aviso', 'Nenhum registro encontrado para o período selecionado.', 'warning');
+        } else {
+            console.log(`Filtro aplicado com sucesso para: ${month.toString().padStart(2, '0')}/${year}`);
+            showToast('Sucesso', `Filtro aplicado: ${month.toString().padStart(2, '0')}/${year} (${matchCount} registros)`, 'success');
+        }
+        
+        // Atualizar contagem de resultados
+        updateResultCount();
+    }
+    
+    // Função para compatibilidade (mantida para não quebrar o código existente)
+    function filterByMonthYear(select, field) {
+        applyMonthYearFilter();
+    }
+    
+    // Função para aplicar o filtro de data exata
+    function applyExactDateFilter() {
+        console.log('Iniciando applyExactDateFilter');
+        const exactDateSelect = document.getElementById('exactDateFilter');
+        if (!exactDateSelect) {
+            console.error('Elemento exactDateFilter não encontrado');
+            return;
+        }
+        
+        const selectedDate = exactDateSelect.value;
+        console.log('Data selecionada:', selectedDate);
+        
+        const rows = document.querySelectorAll('#employeesTable tbody tr');
+        console.log('Total de linhas na tabela:', rows.length);
+        
+        // Se não houver data selecionada, mostrar todas as linhas
+        if (!selectedDate) {
+            console.log('Nenhuma data selecionada, mostrando todos os registros');
+            rows.forEach(row => row.style.display = '');
+            updateResultCount();
+            showToast('Info', 'Mostrando todos os registros.', 'info');
+            return;
+        }
+        
+        // Formatar a data para o formato exibido na tabela (DD/MM/YYYY)
+        const [year, month, day] = selectedDate.split('-').map(Number);
+        const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+        console.log('Data formatada para busca:', formattedDate);
+        
+        let hasMatches = false;
+        let matchCount = 0;
+        
+        rows.forEach((row, index) => {
+            const cell = row.querySelector('td[data-field="field_operation_date"]');
+            if (!cell) {
+                console.log(`Linha ${index + 1}: Célula não encontrada`);
+                row.style.display = 'none';
+                return;
+            }
+            
+            const cellText = cell.textContent.trim();
+            console.log(`Linha ${index + 1}:`, 'Data da célula:', `"${cellText}"`, 'Procurando por:', `"${formattedDate}"`);
+            
+            if (cellText === formattedDate) {
+                console.log(`Encontrada correspondência na linha ${index + 1}`);
+                row.style.display = '';
+                hasMatches = true;
+                matchCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        console.log('Filtro por data exata concluído. Encontradas correspondências:', matchCount);
+        
+        // Fechar o dropdown após a seleção
+        const dropdown = document.querySelector('.filter-dropdown-content');
+        if (dropdown) dropdown.style.display = 'none';
+        
+        // Se não houver correspondências, mostrar mensagem
+        if (!hasMatches) {
+            console.log('Nenhuma correspondência encontrada para a data:', formattedDate);
+            showToast('Aviso', 'Nenhum registro encontrado para a data selecionada.', 'warning');
+        } else {
+            console.log(`Filtro aplicado com sucesso para a data: ${formattedDate}`);
+            showToast('Sucesso', `Filtro aplicado: ${formattedDate} (${matchCount} registros)`, 'success');
+        }
+        
+        // Atualizar contagem de resultados
+        updateResultCount();
+    }
+    
+    // Função para compatibilidade (mantida para não quebrar o código existente)
+    function filterExactDate(select, field) {
+        applyExactDateFilter();
+    }
+    
+    // Função para atualizar as datas disponíveis no seletor de data exata de admissão
+    window.updateAvailableDatesAdmission = function(month, year) {
+        console.log('=== INÍCIO updateAvailableDatesAdmission ===');
+        console.log(`Atualizando datas de admissão disponíveis para mês: ${month}, ano: ${year}`);
+        
+        const exactDateSelect = document.getElementById('exactDateFilterAdmission');
+        if (!exactDateSelect) {
+            console.error('Elemento exactDateFilterAdmission não encontrado');
+            return;
+        }
+        
+        // Salvar a data atualmente selecionada
+        const currentValue = exactDateSelect.value;
+        
+        // Limpar opções atuais, mantendo a primeira opção
+        exactDateSelect.innerHTML = '<option value="">Selecione um dia</option>';
+        
+        // Se não houver mês/ano selecionado, não fazer nada
+        if (!month || !year) {
+            console.log('Mês ou ano não informado, limpando datas de admissão');
+            return;
+        }
+        
+        // Usar um Set para armazenar datas únicas
+        const uniqueDates = new Set();
+        const rows = document.querySelectorAll('#employeesTable tbody tr');
+        
+        console.log(`Procurando datas de admissão para mês ${month}/${year} em ${rows.length} linhas`);
+        
+        // Primeiro, coletar todas as datas únicas para o mês/ano selecionado
+        const dateMap = new Map();
+        
+        rows.forEach((row, index) => {
+            const cell = row.querySelector('td[data-field="admission_date"]');
+            if (!cell) return;
+            
+            const dateText = cell.textContent.trim();
+            if (!dateText || dateText === '-' || dateText === '') return;
+            
+            try {
+                const [day, cellMonth, cellYear] = dateText.split('/').map(Number);
+                
+                // Verificar se a data é válida e corresponde ao mês/ano selecionado
+                if (!isNaN(day) && !isNaN(cellMonth) && !isNaN(cellYear) && 
+                    cellYear === year && cellMonth === month) {
+                    
+                    const dateKey = `${String(day).padStart(2, '0')}`;
+                    const displayDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+                    const dateValue = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    
+                    // Usar o dia como chave para garantir unicidade
+                    if (!dateMap.has(dateKey)) {
+                        dateMap.set(dateKey, { displayDate, dateValue });
+                        console.log(`Encontrada data de admissão: ${displayDate}`);
+                    }
+                }
+            } catch (e) {
+                console.error(`Erro ao processar data de admissão na linha ${index + 1}:`, dateText, e);
+            }
+        });
+        
+        console.log(`Total de datas de admissão únicas encontradas: ${dateMap.size}`);
+        
+        // Ordenar as datas por dia
+        const sortedDates = Array.from(dateMap.entries()).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+        
+        // Adicionar as opções ordenadas ao select
+        sortedDates.forEach(([_, { displayDate, dateValue }]) => {
+            const option = document.createElement('option');
+            option.value = dateValue;
+            option.textContent = displayDate;
+            exactDateSelect.appendChild(option);
+            console.log(`Adicionada data de admissão ao seletor: ${displayDate}`);
+        });
+        
+        // Se não encontrou nenhuma data, adiciona uma mensagem
+        if (dateMap.size === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'Nenhuma data encontrada';
+            option.disabled = true;
+            exactDateSelect.appendChild(option);
+        }
+        
+        // Restaurar a seleção anterior se ainda estiver disponível
+        if (currentValue && Array.from(exactDateSelect.options).some(opt => opt.value === currentValue)) {
+            exactDateSelect.value = currentValue;
+        }
+        
+        // Se houver apenas uma data além da opção padrão, selecioná-la automaticamente
+        if (exactDateSelect.options.length === 2) {
+            exactDateSelect.selectedIndex = 1;
+            // Aplicar o filtro automaticamente
+            applyExactDateFilterAdmission();
+        }
+        
+        console.log('=== FIM updateAvailableDatesAdmission ===');
+    }
+    
+    // Função para aplicar o filtro de mês/ano de admissão
+    function applyMonthYearFilterAdmission() {
+        console.log('Iniciando applyMonthYearFilterAdmission');
+        const monthYearSelect = document.getElementById('monthYearFilterAdmission');
+        if (!monthYearSelect) {
+            console.error('Elemento monthYearFilterAdmission não encontrado');
+            return;
+        }
+        
+        const monthYear = monthYearSelect.value;
+        console.log('Mês/Ano de admissão selecionado:', monthYear);
+        
+        const rows = document.querySelectorAll('#employeesTable tbody tr');
+        console.log('Total de linhas na tabela:', rows.length);
+        
+        // Se não houver mês/ano selecionado, limpar filtros
+        if (!monthYear) {
+            console.log('Nenhum mês/ano selecionado, limpando filtros de admissão');
+            const exactDateSelect = document.getElementById('exactDateFilterAdmission');
+            if (exactDateSelect) {
+                exactDateSelect.innerHTML = '<option value="">Selecione uma data</option>';
+            }
+            
+            // Mostrar todas as linhas
+            rows.forEach(row => row.style.display = '');
+            updateResultCount();
+            showToast('Info', 'Filtro de admissão removido. Mostrando todos os registros.', 'info');
+            return;
+        }
+        
+        const [year, month] = monthYear.split('-').map(Number);
+        
+        // Atualizar as datas disponíveis no seletor de data exata
+        updateAvailableDatesAdmission(month, year);
+        
+        // Se houver apenas uma data, ela já foi selecionada automaticamente
+        // e o filtro já foi aplicado pela função updateAvailableDatesAdmission
+        const exactDateSelect = document.getElementById('exactDateFilterAdmission');
+        if (exactDateSelect && exactDateSelect.value) {
+            console.log('Já há uma data de admissão selecionada, não é necessário aplicar o filtro de mês/ano');
+            return;
+        }
+        
+        // Se não houver data específica selecionada, aplicar o filtro de mês/ano
+        let hasMatches = false;
+        let matchCount = 0;
+        
+        rows.forEach((row, index) => {
+            const cell = row.querySelector('td[data-field="admission_date"]');
+            if (!cell) {
+                row.style.display = 'none';
+                return;
+            }
+            
+            const dateText = cell.textContent.trim();
+            
+            if (dateText === '-' || dateText === '') {
+                row.style.display = 'none';
+                return;
+            }
+            
+            try {
+                // Converter data do formato DD/MM/YYYY
+                const [day, cellMonth, cellYear] = dateText.split('/').map(Number);
+                
+                // Verificar se a data é válida e corresponde ao mês/ano selecionado
+                if (!isNaN(day) && !isNaN(cellMonth) && !isNaN(cellYear) && 
+                    cellYear === year && cellMonth === month) {
+                    
+                    row.style.display = '';
+                    hasMatches = true;
+                    matchCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            } catch (e) {
+                console.error(`Erro ao processar data de admissão na linha ${index + 1}:`, dateText, e);
+                row.style.display = 'none';
+            }
+        });
+        
+        console.log('Filtro por mês/ano de admissão concluído. Encontradas correspondências:', matchCount);
+        
+        // Fechar o dropdown após a seleção
+        const dropdown = document.querySelector('.filter-dropdown-content');
+        if (dropdown) dropdown.style.display = 'none';
+        
+        // Se não houver correspondências, mostrar mensagem
+        if (!hasMatches) {
+            console.log('Nenhuma correspondência encontrada para o mês/ano de admissão:', month, '/', year);
+            showToast('Aviso', 'Nenhum registro encontrado para o período de admissão selecionado.', 'warning');
+        } else {
+            console.log(`Filtro de admissão aplicado com sucesso para: ${month.toString().padStart(2, '0')}/${year}`);
+            showToast('Sucesso', `Filtro de admissão aplicado: ${month.toString().padStart(2, '0')}/${year} (${matchCount} registros)`, 'success');
+        }
+        
+        // Atualizar contagem de resultados
+        updateResultCount();
+    }
+    
+    // Função para lidar com a mudança no seletor de mês/ano
+    window.onMonthYearAdmissionChange = function(select) {
+        console.log('onMonthYearAdmissionChange chamado com valor:', select.value);
+        const monthYear = select.value;
+        const exactDateSelect = document.getElementById('exactDateFilterAdmission');
+        
+        // Limpar a seleção de data exata quando o mês/ano for alterado
+        if (exactDateSelect) {
+            exactDateSelect.value = '';
+        }
+        
+        // Se um mês/ano foi selecionado, atualizar as datas disponíveis
+        if (monthYear) {
+            const [year, month] = monthYear.split('-').map(Number);
+            console.log('Chamando updateAvailableDatesAdmission com:', month, year);
+            if (window.updateAvailableDatesAdmission) {
+                updateAvailableDatesAdmission(month, year);
+            } else {
+                console.error('updateAvailableDatesAdmission não está definido!');
+            }
+            
+            // Aplicar o filtro automaticamente
+            setTimeout(() => {
+                if (window.applyDateFilterAdmission) {
+                    applyDateFilterAdmission();
+                } else {
+                    console.error('applyDateFilterAdmission não está definido!');
+                }
+            }, 100);
+        } else {
+            // Se não houver seleção, mostrar todos os registros
+            const rows = document.querySelectorAll('#employeesTable tbody tr');
+            rows.forEach(row => row.style.display = '');
+            if (window.updateResultCount) {
+                updateResultCount();
+            }
+        }
+    }
+    
+    // Função para aplicar o filtro de data exata de admissão
+    window.applyExactDateFilterAdmission = function() {
+        console.log('=== INÍCIO applyExactDateFilterAdmission ===');
+        const exactDateSelect = document.getElementById('exactDateFilterAdmission');
+        if (!exactDateSelect) {
+            console.error('Elemento exactDateFilterAdmission não encontrado');
+            return;
+        }
+        
+        const selectedDate = exactDateSelect.value;
+        console.log('Data de admissão selecionada:', selectedDate);
+        
+        const rows = document.querySelectorAll('#employeesTable tbody tr');
+        console.log('Total de linhas na tabela:', rows.length);
+        
+        // Se não houver data selecionada, mostrar todas as linhas
+        if (!selectedDate) {
+            console.log('Nenhuma data de admissão selecionada, mostrando todos os registros');
+            rows.forEach(row => row.style.display = '');
+            updateResultCount();
+            showToast('Info', 'Mostrando todos os registros de admissão.', 'info');
+            return;
+        }
+        
+        // Formatar a data para o formato exibido na tabela (DD/MM/YYYY)
+        const [year, month, day] = selectedDate.split('-').map(Number);
+        const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+        console.log('Data de admissão formatada para busca:', formattedDate);
+        
+        let hasMatches = false;
+        let matchCount = 0;
+        
+        // Primeiro, mostrar todas as linhas para limpar filtros anteriores
+        rows.forEach(row => row.style.display = 'none');
+        
+        // Depois, percorrer novamente para aplicar o filtro
+        rows.forEach((row, index) => {
+            const cell = row.querySelector('td[data-field="admission_date"]');
+            if (!cell) {
+                console.log(`Linha ${index + 1}: Célula de admissão não encontrada`);
+                row.style.display = 'none';
+                return;
+            }
+            
+            const cellText = cell.textContent.trim();
+            console.log(`Linha ${index + 1}:`, 'Data de admissão da célula:', `"${cellText}"`, 'Procurando por:', `"${formattedDate}"`);
+            
+            // Verificar se a célula contém a data exata
+            if (cellText === formattedDate) {
+                console.log(`Encontrada correspondência de admissão na linha ${index + 1}`);
+                row.style.display = '';
+                hasMatches = true;
+                matchCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        console.log('=== FIM applyExactDateFilterAdmission ===');
+        
+        console.log('Filtro por data exata de admissão concluído. Encontradas correspondências:', matchCount);
+        
+        // Fechar o dropdown após a seleção
+        const dropdown = document.querySelector('.filter-dropdown-content');
+        if (dropdown) dropdown.style.display = 'none';
+        
+        // Se não houver correspondências, mostrar mensagem
+        if (!hasMatches) {
+            console.log('Nenhuma correspondência encontrada para a data de admissão:', formattedDate);
+            showToast('Aviso', 'Nenhum registro encontrado para a data de admissão selecionada.', 'warning');
+        } else {
+            console.log(`Filtro de admissão aplicado com sucesso para a data: ${formattedDate}`);
+            showToast('Sucesso', `Filtro de admissão aplicado: ${formattedDate} (${matchCount} registros)`, 'success');
+        }
+        
+        // Atualizar contagem de resultados
+        updateResultCount();
+    }
+    
+    // Função para aplicar o filtro de data de admissão baseado na seleção
+    window.applyDateFilterAdmission = function() {
+        console.log('=== INÍCIO applyDateFilterAdmission ===');
+        
+        // Chamar a função principal de filtro que agora lida com todos os filtros
+        window.applyDateFilter();
+        
+        console.log('=== FIM applyDateFilterAdmission ===');
+    };
+
+    // Funções auxiliares para filtragem
+    function filterByExactDate(rows, dateValue, field) {
+        if (!dateValue) return rows;
+        
+        const [year, month, day] = dateValue.split('-').map(Number);
+        const formattedDate = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+        
+        console.log(`Filtrando por data exata: ${formattedDate} no campo: ${field}`);
+        
+        return rows.filter(row => {
+            const cell = row.querySelector(`td[data-field="${field}"]`);
+            if (!cell) {
+                console.log('Célula não encontrada para o campo:', field);
+                return false;
+            }
+            
+            const cellText = cell.textContent.trim();
+            console.log('Comparando datas:', { 
+                cellText, 
+                formattedDate, 
+                match: cellText === formattedDate 
+            });
+            
+            return cellText === formattedDate;
+        });
+    }
+    
+    function filterByMonthYear(rows, monthYearValue, field) {
+        if (!monthYearValue) return rows;
+        
+        const [year, month] = monthYearValue.split('-').map(Number);
+        
+        return rows.filter(row => {
+            const cell = row.querySelector(`td[data-field="${field}"]`);
+            if (!cell) return false;
+            
+            const dateText = cell.textContent.trim();
+            if (!dateText || dateText === '-') return false;
+            
+            try {
+                const [day, cellMonth, cellYear] = dateText.split('/').map(Number);
+                return cellYear === year && cellMonth === month;
+            } catch (e) {
+                console.error('Erro ao processar data:', dateText, e);
+                return false;
+            }
+        });
+    }
+    
+    // Função para aplicar o filtro de data baseado na seleção
+    window.applyDateFilter = function() {
+        console.log('=== INÍCIO applyDateFilter ===');
+        
+        // Obter todas as linhas da tabela
+        const allRows = Array.from(document.querySelectorAll('#employeesTable tbody tr'));
+        let filteredRows = [...allRows];
+        
+        // Verificar filtros de data de operação
+        const monthYearSelect = document.getElementById('monthYearFilter');
+        const exactDateSelect = document.getElementById('exactDateFilter');
+        
+        // Aplicar filtro de data de operação se houver seleção
+        if (exactDateSelect && exactDateSelect.value) {
+            console.log('Aplicando filtro por data exata de operação');
+            filteredRows = filterByExactDate(filteredRows, exactDateSelect.value, 'field_operation_date');
+        } 
+        else if (monthYearSelect && monthYearSelect.value) {
+            console.log('Aplicando filtro por mês/ano de operação');
+            filteredRows = filterByMonthYear(filteredRows, monthYearSelect.value, 'field_operation_date');
+        }
+        
+        // Verificar filtros de data de admissão
+        const monthYearAdmission = document.getElementById('monthYearFilterAdmission');
+        const exactDateAdmission = document.getElementById('exactDateFilterAdmission');
+        
+        // Aplicar filtro de data de admissão se houver seleção
+        if (exactDateAdmission && exactDateAdmission.value) {
+            console.log('Aplicando filtro por data exata de admissão');
+            filteredRows = filterByExactDate(filteredRows, exactDateAdmission.value, 'admission_date');
+        } 
+        else if (monthYearAdmission && monthYearAdmission.value) {
+            console.log('Aplicando filtro por mês/ano de admissão');
+            filteredRows = filterByMonthYear(filteredRows, monthYearAdmission.value, 'admission_date');
+        }
+        
+        // Atualizar a exibição das linhas
+        allRows.forEach(row => {
+            row.style.display = filteredRows.includes(row) ? '' : 'none';
+        });
+        
+        // Atualizar contagem de resultados
+        updateResultCount();
+        
+        // Mostrar mensagem de sucesso
+        const visibleCount = filteredRows.length;
+        const totalCount = allRows.length;
+        
+        if (visibleCount === 0) {
+            showToast('Aviso', 'Nenhum registro encontrado com os filtros atuais.', 'warning');
+        } else if (visibleCount < totalCount) {
+            showToast('Sucesso', `Mostrando ${visibleCount} de ${totalCount} registros.`, 'success');
+        } else {
+            showToast('Info', 'Mostrando todos os registros.', 'info');
+        }
+        
+        console.log('=== FIM applyDateFilter ===');
+    }
+        
+        // Função para limpar todos os filtros
+        function clearDateFilter(field) {
+            console.log('Limpando filtro para o campo:', field);
+            
+            if (field === 'field_operation_date') {
+                const monthYearSelect = document.getElementById('monthYearFilter');
+                const exactDateSelect = document.getElementById('exactDateFilter');
+                
+                if (monthYearSelect) monthYearSelect.value = '';
+                if (exactDateSelect) exactDateSelect.value = '';
+            } 
+            else if (field === 'admission_date') {
+                const monthYearAdmission = document.getElementById('monthYearFilterAdmission');
+                const exactDateAdmission = document.getElementById('exactDateFilterAdmission');
+                
+                if (monthYearAdmission) monthYearAdmission.value = '';
+                if (exactDateAdmission) exactDateAdmission.value = '';
+            }
+            
+            // Aplicar os filtros restantes
+            window.applyDateFilter();
+            
+            console.log('Filtros limpos com sucesso');
+        }
+        
+    // Adicionar eventos aos filtros de data quando o DOM estiver pronto
+    document.addEventListener('DOMContentLoaded', function() {
+        // Filtro de mês/ano de admissão
+        const monthYearAdmissionSelect = document.getElementById('monthYearFilterAdmission');
+        if (monthYearAdmissionSelect) {
+            monthYearAdmissionSelect.addEventListener('change', function() {
+                // Limpar data exata ao selecionar mês/ano
+                const exactDateAdmissionSelect = document.getElementById('exactDateFilterAdmission');
+                if (exactDateAdmissionSelect) {
+                    exactDateAdmissionSelect.value = '';
+                }
+                // Aplicar filtros
+                window.applyDateFilter();
+            });
+        }
+        
+        // Filtro de data exata de admissão
+        const exactDateAdmissionSelect = document.getElementById('exactDateFilterAdmission');
+        if (exactDateAdmissionSelect) {
+            exactDateAdmissionSelect.addEventListener('change', function() {
+                // Limpar mês/ano ao selecionar data exata
+                const monthYearAdmissionSelect = document.getElementById('monthYearFilterAdmission');
+                if (monthYearAdmissionSelect) {
+                    monthYearAdmissionSelect.value = '';
+                }
+                // Aplicar filtros
+                window.applyDateFilter();
+            });
+        }
+        
+        // Filtro de mês/ano de operação
+        const monthYearSelect = document.getElementById('monthYearFilter');
+        if (monthYearSelect) {
+            monthYearSelect.addEventListener('change', function() {
+                // Limpar data exata ao selecionar mês/ano
+                const exactDateSelect = document.getElementById('exactDateFilter');
+                if (exactDateSelect) {
+                    exactDateSelect.value = '';
+                }
+                // Aplicar filtros
+                window.applyDateFilter();
+            });
+        }
+        
+        // Filtro de data exata de operação
+        const exactDateSelect = document.getElementById('exactDateFilter');
+        if (exactDateSelect) {
+            exactDateSelect.addEventListener('change', function() {
+                // Limpar mês/ano ao selecionar data exata
+                const monthYearSelect = document.getElementById('monthYearFilter');
+                if (monthYearSelect) {
+                    monthYearSelect.value = '';
+                }
+                // Aplicar filtros
+                window.applyDateFilter();
+            });
+        }
+    }); // Fechamento do DOMContentLoaded
+    
+    // Single employee delete functionality
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.delete-employee')) {
+            e.preventDefault();
+            const button = e.target.closest('.delete-employee');
+            const employeeId = button.getAttribute('data-id');
+            const row = button.closest('tr');
+            const registration = row.querySelector('td[data-field="registration"]').textContent.trim();
+            const name = row.querySelector('td[data-field="full_name"]').textContent.trim();
+            
+            // Set employee info in modal
+            document.getElementById('deleteEmployeeRegistration').textContent = registration;
+            document.getElementById('deleteEmployeeName').textContent = name;
+            
+            // Show the modal
+            const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            
+            // Remove any existing click handlers to prevent multiple bindings
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            
+            // Handle confirm delete button click for single employee
+            newConfirmBtn.onclick = async function() {
+                try {
+                    const response = await fetch(`/delete_employee/${employeeId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        // Remove the row from the table
+                        row.remove();
+                        
+                        // Update the "Nenhum colaborador cadastrado" message if needed
+                        const tbody = document.querySelector('#employeesTable tbody');
+                        const hasRows = tbody.querySelector('tr[data-employee-id]');
+                        
+                        if (!hasRows) {
+                            const emptyRow = document.createElement('tr');
+                            emptyRow.id = 'noEmployeesRow';
+                            emptyRow.innerHTML = '<td colspan="28" class="text-center">Nenhum colaborador cadastrado</td>';
+                            tbody.appendChild(emptyRow);
+                        }
+                        
+                        showToast('Sucesso', 'Colaborador excluído com sucesso', 'success');
+                    } else {
+                        const result = await response.json();
+                        throw new Error(result.error || 'Erro ao excluir colaborador');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showToast('Erro', error.message || 'Erro ao excluir colaborador', 'danger');
+                }
+                
+                // Hide the modal
+                deleteModal.hide();
+            };
+            
+            deleteModal.show();
+        }
+    });
+    
+    // Garantir que as funções estejam disponíveis no escopo global
+    window.applyExactDateFilter = applyExactDateFilter;
+    window.applyMonthYearFilter = applyMonthYearFilter;
+    window.updateAvailableDates = updateAvailableDates;
+    window.clearDateFilter = clearDateFilter;
+    window.updateResultCount = updateResultCount;
+    window.showToast = showToast;
+    
+    // Adicionar evento de clique para o botão de aplicar filtro de data de operação
+    const applyButton = document.querySelector('button[onclick*="applyDateFilter"]');
+    if (applyButton) {
+        applyButton.addEventListener('click', function(e) {
+            e.stopPropagation();
+            console.log('Botão de aplicar filtro de data de operação clicado via evento');
+            if (window.applyDateFilter) {
+                window.applyDateFilter();
+            } else {
+                console.error('A função applyDateFilter não está definida!');
+            }
+        });
+    } else {
+        console.error('Botão de aplicar filtro de data de operação não encontrado');
+    }
+    
+    // Adicionar log para verificar se o evento de clique está sendo disparado
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('button') && e.target.closest('button').textContent.includes('Aplicar Filtro')) {
+            console.log('Botão Aplicar Filtro clicado', e.target);
+        }
+    });
+    
+    console.log('Eventos configurados com sucesso!');
+});
+</script>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir este colaborador? Esta ação não pode ser desfeita.</p>
+                <p><strong>Matrícula:</strong> <span id="deleteEmployeeRegistration"></span></p>
+                <p><strong>Nome:</strong> <span id="deleteEmployeeName"></span></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Sim, Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

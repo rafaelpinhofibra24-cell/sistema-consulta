@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block header %}Editar Colaborador{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <div class="mb-4">
+                    <h5 class="card-title">Detalhes do Colaborador</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Matrícula:</strong> {{ employee.registration }}</p>
+                            <p><strong>Função:</strong> {{ employee.role or '-' }}</p>
+                            <p><strong>Data de Admissão:</strong> {{ employee.admission_date.strftime('%d/%m/%Y') if employee.admission_date else '-' }}</p>
+                            <p><strong>Contato:</strong> {{ employee.contato or '-' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Status do Curso Técnico:</strong> {{ employee.course_status or '-' }}</p>
+                            <p><strong>Local do Curso:</strong> {{ employee.course_location or '-' }}</p>
+                            <p><strong>Gerente:</strong> {{ employee.manager or '-' }}</p>
+                            <p><strong>Gerente Corporativo:</strong> {{ employee.corporate_manager or '-' }}</p>
+                            <p><strong>Fase Atual:</strong> 
+                                {% set phase = employee.get_current_phase() %}
+                                {% if phase == 'Integração' %}
+                                    <span class="phase-indicator phase-integration">{{ phase }}</span>
+                                {% elif phase == 'Normativo' %}
+                                    <span class="phase-indicator phase-normative">{{ phase }}</span>
+                                {% elif phase == 'Curso Técnico' %}
+                                    <span class="phase-indicator phase-technical">{{ phase }}</span>
+                                {% elif phase == 'Duplado' %}
+                                    <span class="phase-indicator phase-double">{{ phase }}</span>
+                                {% else %}
+                                    <span class="phase-indicator phase-inactive">{{ phase }}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <form method="POST" action="{{ url_for_brand('edit_employee', brand=brand, employee_id=employee.id) }}">
+                    <div class="mb-4">
+                        <h5 class="mb-3">Editar Informações</h5>
+                        <div class="mb-3">
+                            <label for="full_name" class="form-label">Nome Completo</label>
+                            <input type="text" class="form-control" id="full_name" name="full_name" value="{{ employee.full_name }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="contato" class="form-label">Contato (Telefone)</label>
+                            <input type="text" class="form-control" id="contato" name="contato" value="{{ employee.contato or '' }}" placeholder="(00) 00000-0000">
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for_brand('index', brand=brand) }}" class="btn btn-secondary me-md-2">Voltar</a>
+                        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                    </div>
+                </form>
+                
+                <hr>
+                
+                <div class="mt-4">
+                    <h5 class="mb-3">Histórico de Fases</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Fase</th>
+                                    <th>Início</th>
+                                    <th>Término</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr {% if employee.get_current_phase() == 'Integração' %}class="table-active"{% endif %}>
+                                    <td>Integração</td>
+                                    <td>{{ employee.integration_start.strftime('%d/%m/%Y') if employee.integration_start else '-' }}</td>
+                                    <td>{{ employee.integration_end.strftime('%d/%m/%Y') if employee.integration_end else '-' }}</td>
+                                </tr>
+                                <tr {% if employee.get_current_phase() == 'Normativo' %}class="table-active"{% endif %}>
+                                    <td>Normativo</td>
+                                    <td>{{ employee.normative_start.strftime('%d/%m/%Y') if employee.normative_start else '-' }}</td>
+                                    <td>{{ employee.normative_end.strftime('%d/%m/%Y') if employee.normative_end else '-' }}</td>
+                                </tr>
+                                <tr {% if employee.get_current_phase() == 'Curso Técnico' %}class="table-active"{% endif %}>
+                                    <td>Curso Técnico</td>
+                                    <td>{{ employee.technical_course_start.strftime('%d/%m/%Y') if employee.technical_course_start else '-' }}</td>
+                                    <td>{{ employee.technical_course_end.strftime('%d/%m/%Y') if employee.technical_course_end else '-' }}</td>
+                                </tr>
+                                <tr {% if employee.get_current_phase() == 'Duplado' %}class="table-active"{% endif %}>
+                                    <td>Duplado</td>
+                                    <td>{{ employee.double_start.strftime('%d/%m/%Y') if employee.double_start else '-' }}</td>
+                                    <td>{{ employee.double_end.strftime('%d/%m/%Y') if employee.double_end else '-' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .phase-indicator {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.85em;
+        font-weight: 500;
+        display: inline-block;
+        min-width: 100px;
+        text-align: center;
+    }
+    .phase-integration { background-color: #90EE90; color: #000; } /* Verde claro */
+    .phase-normative { background-color: #006400; color: #fff; }  /* Verde escuro */
+    .phase-technical { background-color: #00008B; color: #fff; }  /* Azul escuro */
+    .phase-double { background-color: #87CEEB; color: #000; }     /* Azul claro */
+    .phase-carregamento { background-color: #FF0000; color: #fff; } /* Vermelho */
+    .phase-operação { background-color: #800080; color: #fff; }   /* Roxo */
+    .phase-inactive { background-color: #000000; color: #fff; }   /* Preto */
+    .phase-previsto { background-color: #A9A9A9; color: #000; }   /* Cinza */
+</style>
+
+{% endblock %}

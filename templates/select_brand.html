@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Escolha a Marca</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      body { background:#f8f9fa; }
+      .brand-card { max-width:560px; margin:80px auto; padding:30px; border-radius:12px; box-shadow:0 6px 24px rgba(0,0,0,0.08); background:#fff }
+      .brand-btn { width:100%; padding:18px; font-size:1.1rem; font-weight:600; border-radius:8px }
+      .vivo { background:linear-gradient(90deg,#6a0dad,#8a2be2); color:#fff; border:0 }
+      .claro { background:linear-gradient(90deg,#ff2d2d,#ff6f6f); color:#fff; border:0 }
+      .brand-desc { color:#666; margin-top:12px }
+    </style>
+  </head>
+  <body>
+    <div class="brand-card text-center">
+      <h3>Escolha o Sistema</h3>
+      <p class="brand-desc">Selecione a instância que deseja usar. Cada instância é totalmente independente.</p>
+
+      <div class="mt-4 mb-3">
+        <a href="/vivo/" class="btn brand-btn vivo">Vivo</a>
+      </div>
+
+      <div class="mb-3">
+        <a href="/claro/" class="btn brand-btn claro">Claro</a>
+      </div>
+
+      <p class="text-muted small mt-3">Observação: esta página roda na porta 5000. As instâncias Vivo e Claro rodam localmente em portas separadas para garantir independência dos dados.</p>
+    </div>
+  </body>
+</html>

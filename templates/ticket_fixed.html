@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/style.css" rel="stylesheet">
+    <title>Help Desk Icomon</title>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">Help Desk Icomon</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Alternar navegação">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNavbar">
+          <ul class="navbar-nav ms-auto">
+            
+            <li class="nav-item"><a class="nav-link" href="/dashboard">Painel</a></li>
+            <li class="nav-item"><button id="sound-toggle" type="button" class="nav-link btn btn-link" style="text-decoration:none;" title="Ativar/Desativar som">🔔</button></li>
+            
+            <li class="nav-item"><a class="nav-link" href="/logout">Sair</a></li>
+            
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container mt-4">
+      <div class="row">
+        
+        <div class="col-12">
+         
+  <h4>Chamado #1</h4>
+  <div class="mb-3 p-3" style="border-left:6px solid #198754; background:#f6fffa;">
+    <div class="small text-muted">Atendimento</div>
+    <h4 class="mb-0">PROCEDIMENTO &raquo; FTTA
+        <button id="kb_btn" class="btn btn-outline-info btn-sm ms-3" title="Acessar base de conhecimento"
+                data-ticket="1"
+                data-menu="1"
+                data-submenu="2">
+          <i class="bi bi-book"></i> Deseja acessar a base de conhecimento deste chamado enquanto aguarda?
+        </button>
+    </h4>
+            <div id="ticket_meta" style="display:none"
+              data-ticket="1"
+              data-user-name="TESTE1"
+              data-created-ts="1764187609121"
+              data-accepted-ts="None"
+              data-finished-ts="None"></div>
+    <div class="small text-muted">Aberto em 26/11/2025 17:06 — Status: Aberto</div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Observação do solicitante</label>
+    <div class="p-3" style="background:#fff7f0; border-left:6px solid #fd7e14;">OLA</div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Tempos</label>
+    <div>
+      <span><strong>Tempo de espera:</strong> <span id="wait_timer">--:--:--</span></span>
+      <span class="ms-3"><strong>Tempo de atendimento:</strong> <span id="attend_timer">--:--:--</span></span>
+    </div>
+  </div>
+
+    <div class="mt-3 user-action-area">
+      <h5>Responder (Usuário)</h5>
+        <div class="mt-2">
+          <form action="/ticket/1/user_reply" method="post">
+            <button class="btn btn-warning" name="action" value="not">Ainda não resolveu</button>
+          </form>
+          <form action="/ticket/1/user_reply" method="post" class="d-inline ms-2" onsubmit="return confirm('Deseja realmente cancelar este chamado?')">
+            <button type="submit" class="btn btn-danger" name="action" value="cancel">Cancelar chamado</button>
+          </form>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <form action="/ticket/1/request_call" method="post" onsubmit="return confirm('Deseja solicitar contato telefônico?')">
+          <div class="d-grid">
+            <button class="btn btn-info w-100" style="border-radius:0;">Preciso de contato telefônico</button>
+          </div>
+        </form>
+    </div>
+
+  <div class="modal fade" id="ratingModal" tabindex="-1" aria-labelledby="ratingModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="ratingForm" action="/ticket/1/user_reply" method="post">
+          <div class="modal-header">
+            <h5 class="modal-title" id="ratingModalLabel">Avaliar atendimento</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-muted">Antes de encerrar, avalie o atendimento (1 a 5 estrelas) e deixe um comentário opcional.</p>
+            <input type="hidden" name="action" value="accept">
+            <input type="hidden" name="rating" id="ratingInput" value="">
+            <div class="mb-3">
+              <div id="starContainer" class="fs-3">
+                <button type="button" class="btn btn-link star" data-value="1">☆</button>
+                <button type="button" class="btn btn-link star" data-value="2">☆</button>
+                <button type="button" class="btn btn-link star" data-value="3">☆</button>
+                <button type="button" class="btn btn-link star" data-value="4">☆</button>
+                <button type="button" class="btn btn-link star" data-value="5">☆</button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="ratingComment" class="form-label">Comentário (opcional)</label>
+              <textarea id="ratingComment" name="rating_comment" class="form-control" rows="3" maxlength="2000" placeholder="Deixe um comentário sobre o atendimento (opcional)"></textarea>
+            </div>
+            <div class="small text-muted">Sua avaliação ajuda a melhorar o serviço.</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button id="submitRatingBtn" type="submit" class="btn btn-success">Encerrar e enviar avaliação</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+    <div id="sla_alert" class="mt-3 alert alert-warning">
+      <div>O tempo de espera está maior que o previsto, por gentileza entrar em contato com o seu supervisor ou lider direto</div>
+      <div class="mt-2 d-flex gap-2">
+        <form action="/ticket/1/user_reply" method="post" class="mb-0">
+          <input type="hidden" name="next" value="/dashboard">
+          <button class="btn btn-danger" name="action" value="cancel">Cancelar chamado</button>
+        </form>
+        <button class="btn btn-secondary" onclick="this.closest('.alert').style.display='none'">Continuar aguardando</button>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <h5>Enviar mensagem (Chat)</h5>
+      <form id="userMessageForm" action="/ticket/1/message_user" method="post" enctype="multipart/form-data">
+        <div class="mb-2 d-flex gap-2" style="align-items:stretch;">
+          <textarea id="userMessageInput" class="form-control flex-grow-1" name="content" placeholder="Escreva sua mensagem..." required style="min-height:56px;"></textarea>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <button id="userMessageSend" class="btn btn-primary" style="white-space:nowrap;">Enviar</button>
+            <button id="userMessageCancel" type="button" class="btn btn-secondary" style="white-space:nowrap;">Limpar</button>
+          </div>
+        </div>
+        <div class="mb-2"><input type="file" name="attachment" class="form-control" /></div>
+      </form>
+    </div>
+  <div class="mt-4">
+    <div class="card card-body p-0">
+      <h5 class="p-3 mb-0">Mensagens / Histórico (mais recente primeiro)</h5>
+      <ul id="ticketHistoryList" class="list-group list-group-flush">
+          <li class="list-group-item text-muted">Nenhuma mensagem registrada.</li>
+      </ul>
+    </div>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    <a id="shortcut-dashboard" class="fab" href="/dashboard" title="Ir para o Painel de Chamados" aria-label="Ir para o Painel de Chamados">📋</a>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+      // Expose current session info to JS (use tojson for safe serialization)
+      window.CURRENT_USER_ID = 13;
+      window.CURRENT_ROLE = "user";
+
+      // simple beep generator using WebAudio (respects mute preference)
+      (function(){
+        window.NOTIFY_MUTED = (localStorage.getItem('notifyMuted') === 'true');
+        function updateSoundUI(){
+          var b = document.getElementById('sound-toggle');
+          if(!b) return;
+          b.textContent = window.NOTIFY_MUTED ? '🔕' : '🔔';
+        }
+        updateSoundUI();
+        const AC = window.AudioContext || window.webkitAudioContext;
+        var ctx = null;
+        function getAudioCtx(){ if(!AC) return null; try{ if(!ctx) ctx = new AC(); return ctx; }catch(e){ return null; } }
+        function _doPlayBeep(freq = 880, duration = 150, type = 'sine'){ try{ const c = getAudioCtx(); if(!c) return; if(c.state === 'suspended') { try{ c.resume(); }catch(e){} } const o = c.createOscillator(); const g = c.createGain(); o.type = type; o.frequency.value = freq; o.connect(g); g.connect(c.destination); o.start(); g.gain.setValueAtTime(0.0001, c.currentTime); g.gain.exponentialRampToValueAtTime(0.5, c.currentTime + 0.01); setTimeout(function(){ g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.02); try{ o.stop(); }catch(e){} }, duration); }catch(e){ console.warn('beep failed', e); } }
+        window.playBeep = function(freq, duration, type){ if(window.NOTIFY_MUTED) return; _doPlayBeep(freq, duration, type); };
+        window.playAssignBeep = function(){ if(window.NOTIFY_MUTED) return; _doPlayBeep(600, 300, 'sine'); };
+        window.playMessageBeep = function(){ if(window.NOTIFY_MUTED) return; _doPlayBeep(1000, 140, 'sine'); };
+        document.addEventListener('DOMContentLoaded', function(){ try{ var btn = document.getElementById('sound-toggle'); if(btn){ btn.addEventListener('click', function(e){ window.NOTIFY_MUTED = !window.NOTIFY_MUTED; localStorage.setItem('notifyMuted', window.NOTIFY_MUTED ? 'true' : 'false'); updateSoundUI(); try{ const c = getAudioCtx(); if(c && c.state === 'suspended') c.resume(); }catch(e){} }); } }catch(e){ console.warn('sound toggle attach failed', e); } });
+      })();
+    </script>
+
+  <script>
+    // Operator cancel/escalate helper
+    function promptCancel(ticketId, reason){
+      try{
+        var obs = window.prompt('Observação para o cancelamento (obrigatório):');
+        if(obs === null) return;
+        obs = (obs || '').trim();
+        if(!obs){ alert('Observação obrigatória'); return; }
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/ticket/' + ticketId + '/operator_cancel';
+        var r = document.createElement('input'); r.type='hidden'; r.name='reason'; r.value = reason || '';
+        var c = document.createElement('input'); c.type='hidden'; c.name='custom_reason'; c.value = obs;
+        form.appendChild(r); form.appendChild(c);
+        document.body.appendChild(form);
+        form.submit();
+      }catch(e){ console.error('promptCancel failed', e); alert('Erro ao cancelar chamado'); }
+    }
+  </script>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', function(){
+    try{
+      const meta = document.getElementById('ticket_meta');
+      const TICKET_ID = meta ? meta.dataset.ticket : null;
+      const TICKET_USER_NAME = meta ? (meta.dataset.userName || 'Usuário') : 'Usuário';
+
+      const kbBtn = document.getElementById('kb_btn');
+      if(kbBtn){
+        kbBtn.addEventListener('click', function(e){
+          e.preventDefault();
+          const ticketId = kbBtn.dataset.ticket || TICKET_ID;
+          const menuId = kbBtn.dataset.menu || '';
+          const submenuId = kbBtn.dataset.submenu || '';
+          if(!menuId || !submenuId){ alert('Menu/submenu não definido para este chamado.'); return; }
+          const kbUrl = `/kb/${encodeURIComponent(String(ticketId))}/menu/${encodeURIComponent(String(menuId))}/submenu/${encodeURIComponent(String(submenuId))}`;
+          fetch(kbUrl).then(r=>{ if(!r.ok) throw new Error('status ' + r.status); return r.text(); })
+            .then(html => {
+              const div = document.createElement('div'); div.innerHTML = html; document.body.appendChild(div);
+              const modalEl = document.getElementById('kbModal');
+              if(!modalEl){ console.error('Modal element not found after inserting HTML'); alert('Erro: modal não encontrado no HTML retornado.'); div.remove(); return; }
+              if(typeof bootstrap === 'undefined'){ console.error('Bootstrap not available'); alert('Erro: componente modal do Bootstrap não disponível.'); div.remove(); return; }
+              const modal = new bootstrap.Modal(modalEl); modal.show();
+              modalEl.addEventListener('hidden.bs.modal', function(){ div.remove(); });
+            }).catch(err => { console.error('Fetch KB failed', err); alert('Erro ao carregar base de conhecimento. Veja console.'); });
+        });
+      }
+
+      try{
+        document.querySelectorAll('.op-action-cancel').forEach(function(b){
+          b.addEventListener('click', function(){
+            const reason = b.getAttribute('data-reason') || '';
+            try{ promptCancel(TICKET_ID, reason); }catch(e){ console.error('promptCancel failed', e); }
+          });
+        });
+      }catch(e){ }
+
+      try{
+        const attachMobile = function(){
+          const mobileAccept = document.getElementById('mobile-accept-ticket');
+          if(mobileAccept) mobileAccept.addEventListener('click', function(){ fetch(`/ticket/${encodeURIComponent(TICKET_ID)}/operator_accept`, { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'} }).then(r=>{ if(r.ok) location.reload(); }).catch(e=>console.error(e)); });
+          const mobileAcceptCall = document.getElementById('mobile-accept-call');
+          if(mobileAcceptCall) mobileAcceptCall.addEventListener('click', function(){ fetch(`/ticket/${encodeURIComponent(TICKET_ID)}/accept_call`, { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'} }).then(r=>{ if(r.ok) location.reload(); }).catch(()=>{}); });
+          const mobileUserAction = function(action){ const fd = new FormData(); fd.append('action', action); fetch(`/ticket/${encodeURIComponent(TICKET_ID)}/user_reply`, { method:'POST', body: fd, headers:{'X-Requested-With':'XMLHttpRequest'} }).then(r=>{ if(r.ok) location.reload(); }).catch(()=>{}); };
+          const mobileAcceptUser = document.getElementById('mobile-user-accept');
+          if(mobileAcceptUser) mobileAcceptUser.addEventListener('click', function(ev){ const ratingModalEl = document.getElementById('ratingModal'); const openBtn = document.getElementById('openRatingBtn'); if(ratingModalEl && openBtn){ ev.preventDefault(); openBtn.click(); return; } if(confirm('Encerrar o chamado?')) mobileUserAction('accept'); });
+          const mobileNotUser = document.getElementById('mobile-user-not'); if(mobileNotUser) mobileNotUser.addEventListener('click', function(){ mobileUserAction('not'); });
+          const mobileCancelUser = document.getElementById('mobile-user-cancel'); if(mobileCancelUser) mobileCancelUser.addEventListener('click', function(){ if(confirm('Deseja realmente cancelar este chamado?')) mobileUserAction('cancel'); });
+        };
+        attachMobile();
+      }catch(e){ console.warn('mobile handlers failed', e); }
+
+    }catch(err){ console.error('ticket_view init failed', err); }
+  });
+  </script>
+
+  <script>
+    // Safety: remove any stray helper text about pasting images if still present in cached HTML
+    document.addEventListener('DOMContentLoaded', function(){
+      try{
+        const needle = 'Você pode colar imagens diretamente no campo de texto';
+        const nodes = Array.from(document.querySelectorAll('div, p, span, small'));
+        for(const n of nodes){ try{ if(n && n.textContent && n.textContent.indexOf(needle) !== -1){ n.remove(); } }catch(e){} }
+      }catch(e){ console.warn('cleanup helper text failed', e); }
+    });
+  </script>
+
+  <script>
+    // Rating modal handlers
+    document.addEventListener('DOMContentLoaded', function(){
+      try{
+        const openBtn = document.getElementById('openRatingBtn');
+        const ratingModalEl = document.getElementById('ratingModal');
+        const ratingInput = document.getElementById('ratingInput');
+        const starContainer = document.getElementById('starContainer');
+        const ratingForm = document.getElementById('ratingForm');
+        const ratingComment = document.getElementById('ratingComment');
+        let bootstrapModal = null;
+        if(ratingModalEl && typeof bootstrap !== 'undefined'){
+          bootstrapModal = new bootstrap.Modal(ratingModalEl, { backdrop: 'static', keyboard: false });
+          ratingModalEl.addEventListener('show.bs.modal', function(e){ window.ratingModalActive = true; });
+          ratingModalEl.addEventListener('hide.bs.modal', function(e){ window.ratingModalActive = false; });
+          ratingModalEl.addEventListener('hidden.bs.modal', function(e){});
+        }
+        function setStars(value){ if(!starContainer) return; const stars = starContainer.querySelectorAll('.star'); stars.forEach(function(s){ const v = Number(s.getAttribute('data-value')); if(v <= value){ s.textContent = '★'; s.classList.add('text-warning'); } else { s.textContent = '☆'; s.classList.remove('text-warning'); } }); }
+        if(starContainer){ starContainer.addEventListener('click', function(e){ const btn = e.target.closest('.star'); if(!btn) return; const v = Number(btn.getAttribute('data-value')) || 0; ratingInput.value = v; setStars(v); }); }
+        if(openBtn){ openBtn.addEventListener('click', function(e){ e.preventDefault(); ratingInput.value = ''; if(ratingComment) ratingComment.value = ''; setStars(0); window.ratingModalActive = true; if(bootstrapModal) bootstrapModal.show(); else alert('Avaliação: selecione uma nota e confirme para encerrar.'); }); }
+        if(ratingForm){ ratingForm.addEventListener('submit', function(ev){ const val = Number(ratingInput.value || 0); if(!(val >=1 && val <=5)){ if(!confirm('Você não escolheu uma nota (1-5). Deseja encerrar sem avaliar?')){ ev.preventDefault(); return false; } } window.ratingModalActive = false; return true; }); }
+        try{ const mobileAccept = document.getElementById('mobile-user-accept'); if(mobileAccept){ mobileAccept.addEventListener('click', function(ev){ ev.preventDefault(); if(openBtn) openBtn.click(); }); } }catch(e){}
+      }catch(e){ console.warn('rating modal init failed', e); }
+    });
+  </script>
+
+  <!-- Timers: atualiza tempo de espera / tempo de atendimento -->
+  <script>
+  document.addEventListener('DOMContentLoaded', function(){
+    try {
+      const meta = document.getElementById('ticket_meta');
+      if(!meta) return;
+      const createdRaw = meta.dataset.createdTs;
+      const acceptedRaw = meta.dataset.acceptedTs;
+      function parseMaybeTimestamp(v){
+        if(!v || v === 'None' || v === 'null') return null;
+        const digits = (''+v).replace(/\D/g,'');
+        if(!digits) return null;
+        if(digits.length >= 13) return new Date(parseInt(digits,10));
+        if(digits.length <= 12) return new Date(parseInt(digits,10) * 1000);
+        return new Date(parseInt(digits,10));
+      }
+      const openedAt = parseMaybeTimestamp(createdRaw);
+      const acceptedAt = parseMaybeTimestamp(acceptedRaw);
+      const waitEl = document.getElementById('wait_timer');
+      const attEl = document.getElementById('attend_timer');
+      function formatDelta(ms){ if(ms == null || isNaN(ms) || ms < 0) return '--:--:--'; const totalSec = Math.floor(ms / 1000); const h = Math.floor(totalSec / 3600); const m = Math.floor((totalSec % 3600) / 60); const s = totalSec % 60; const hh = String(h).padStart(2,'0'); const mm = String(m).padStart(2,'0'); const ss = String(s).padStart(2,'0'); return `${hh}:${mm}:${ss}`; }
+      function updateTimers(){ const now = new Date(); if(waitEl){ if(openedAt) waitEl.textContent = formatDelta(now - openedAt); else waitEl.textContent = '--:--:--'; } if(attEl){ if(acceptedAt){ attEl.textContent = formatDelta(now - acceptedAt); } else { attEl.textContent = '--:--:--'; } } }
+      updateTimers(); const timerId = setInterval(updateTimers, 1000); window.addEventListener('beforeunload', function(){ clearInterval(timerId); });
+    } catch (err) { console.error('ticket timers init failed', err); }
+  });
+  </script>
+
+  <!-- Mobile action bar (ticket view) -->
+  <div class="mobile-action-bar" role="toolbar" aria-label="Ações do chamado">
+        <button id="mobile-user-not" class="btn btn-warning">Ainda não resolveu</button>
+        <button id="mobile-user-cancel" class="btn btn-danger">Cancelar</button>
+  </div>
+
+  </body>
+</html>

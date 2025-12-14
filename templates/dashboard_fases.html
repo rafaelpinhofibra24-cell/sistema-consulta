@@ -1,0 +1,473 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard de Fases{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+    <h1 class="h3 mb-0">Dashboard de Fases</h1>
+    <div class="d-flex gap-2">
+        <!-- Filtro Mês de Operação -->
+        <div class="dropdown me-2">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="mesOperacaoDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                {% if mes_selecionado == 'todos' %}Todos os Meses{% else %}Mês {{ mes_selecionado }}{% endif %}
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="mesOperacaoDropdown">
+                    <li><a class="dropdown-item {% if mes_selecionado == 'todos' %}active{% endif %}" 
+                        href="{{ url_for_brand('dashboard_fases', brand=brand, apto_operacao=filtro_apto_operacao, mes_operacao='todos') }}">
+                    Todos os Meses
+                </a></li>
+                {% if meses_disponiveis %}
+                <li><hr class="dropdown-divider"></li>
+                {% for valor, label in meses_disponiveis %}
+                    <li><a class="dropdown-item {% if mes_selecionado == valor %}active{% endif %}" 
+                        href="{{ url_for_brand('dashboard_fases', brand=brand, apto_operacao=filtro_apto_operacao, mes_operacao=valor) }}">
+                    {{ label }}
+                </a></li>
+                {% endfor %}
+                {% endif %}
+            </ul>
+        </div>
+        
+        <!-- Filtro Apto para Operação -->
+        <div class="btn-group" role="group">
+                <a href="{{ url_for_brand('dashboard_fases', brand=brand, mes_operacao=mes_selecionado) }}" 
+                    class="btn btn-sm {% if filtro_apto_operacao == 'todos' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                Todos
+            </a>
+                <a href="{{ url_for_brand('dashboard_fases', brand=brand, apto_operacao='sim', mes_operacao=mes_selecionado) }}" 
+               class="btn btn-sm {% if filtro_apto_operacao == 'sim' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                Apto para Operação
+            </a>
+                <a href="{{ url_for_brand('dashboard_fases', brand=brand, apto_operacao='nao', mes_operacao=mes_selecionado) }}" 
+               class="btn btn-sm {% if filtro_apto_operacao == 'nao' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                Não Apto
+            </a>
+        </div>
+        
+        <a href="{{ url_for_brand('index', brand=brand) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Voltar
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Incluindo Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Distribuição por Fase</h5>
+                <div class="chart-container" style="position: relative; height: 300px;">
+                    <canvas id="phaseChart" width="100%" height="100%"></canvas>
+                    <div id="chartError" class="alert alert-danger d-none" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Não foi possível carregar o gráfico. Por favor, recarregue a página.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    {% for phase, employees in employees_by_phase.items() %}
+    {% if employees %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ phase }}</h5>
+                <span class="badge bg-primary rounded-pill">{{ employees|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                    {% for employee in employees %}
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">{{ employee.full_name }}</h6>
+                            <small class="text-muted">
+                                {% if employee.field_operation_date %}
+                                    {{ employee.field_operation_date.strftime('%d/%m/%Y') }}
+                                {% else %}
+                                    Sem data
+                                {% endif %}
+                            </small>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                {{ employee.registration }}
+                                {% if employee.team %}
+                                    • {{ employee.team }}
+                                {% endif %}
+                            </small>
+                            <a href="{{ url_for_brand('view_employee', brand=brand, employee_id=employee.id, referrer='dashboard') }}" 
+                               class="btn btn-sm btn-outline-primary btn-sm">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+
+<script>
+// Aguardar o carregamento do DOM
+document.addEventListener('DOMContentLoaded', function() {
+    // Dados para o gráfico
+    const labels = JSON.parse('{{ labels|tojson|safe }}');
+    const data = JSON.parse('{{ data|tojson|safe }}');
+    
+    // Obter referência ao elemento canvas
+    const canvasElement = document.getElementById('phaseChart');
+    
+    // Verificar se o canvas está disponível
+    if (!canvasElement) {
+        console.error('Elemento do gráfico não encontrado');
+        const errorDiv = document.getElementById('chartError');
+        if (errorDiv) {
+            errorDiv.classList.remove('d-none');
+            errorDiv.textContent = 'Erro: Elemento do gráfico não encontrado';
+        }
+        return;
+    }
+    
+    // Obter o contexto 2D do canvas
+    const ctx = canvasElement.getContext('2d');
+    
+        // Verificar se o Chart.js está carregado corretamente
+    if (window.Chart && typeof Chart === 'function' && Chart.Chart) {
+        // Função para obter a cor com base no nome da fase
+        function getPhaseColor(phaseName) {
+            const colors = {
+                'INTEGRAÇÃO': 'rgba(144, 238, 144, 0.8)',   // Verde claro
+                'NORMATIVO': 'rgba(0, 100, 0, 0.8)',        // Verde escuro
+                'CURSO TÉCNICO': 'rgba(0, 0, 139, 0.8)',    // Azul escuro
+                'DUPLADO': 'rgba(135, 206, 250, 0.8)',      // Azul claro
+                'CARREGAMENTO': 'rgba(255, 0, 0, 0.8)',     // Vermelho
+                'OPERAÇÃO': 'rgba(128, 0, 128, 0.8)',       // Roxo
+                'SEM FASE ATIVA': 'rgba(0, 0, 0, 0.8)',     // Preto
+                'PREVISTO': 'rgba(169, 169, 169, 0.8)'      // Cinza
+            };
+            
+            console.log('Fase recebida para coloração:', phaseName);
+            
+            // Tenta encontrar a chave que mais se assemelha ao nome da fase
+            const normalizedPhase = phaseName.toUpperCase().trim();
+            console.log('Fase normalizada:', normalizedPhase);
+            
+            for (const [key, value] of Object.entries(colors)) {
+                if (normalizedPhase.includes(key)) {
+                    console.log(`Cor encontrada para ${normalizedPhase}:`, value);
+                    return value;
+                }
+            }
+            
+            console.log('Nenhuma cor encontrada para a fase, usando padrão');
+            // Retorna uma cor padrão se não encontrar correspondência
+            return 'rgba(108, 117, 125, 0.8)';
+        }
+        
+        // Criar o array de cores baseado nos nomes das fases
+        const backgroundColors = labels.map(phase => getPhaseColor(phase));
+        
+        // Adicionar tooltips manuais como fallback
+        function showTooltip(x, y, text) {
+            let tooltip = document.getElementById('customTooltip');
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.id = 'customTooltip';
+                tooltip.style.position = 'absolute';
+                tooltip.style.background = 'rgba(0, 0, 0, 0.8)';
+                tooltip.style.color = 'white';
+                tooltip.style.padding = '8px 12px';
+                tooltip.style.borderRadius = '4px';
+                tooltip.style.pointerEvents = 'none';
+                tooltip.style.zIndex = '1000';
+                tooltip.style.fontSize = '13px';
+                tooltip.style.fontFamily = 'Arial, sans-serif';
+                tooltip.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+                document.body.appendChild(tooltip);
+            }
+            tooltip.textContent = text;
+            tooltip.style.left = (x + 10) + 'px';
+            tooltip.style.top = (y + 10) + 'px';
+            tooltip.style.display = 'block';
+        }
+
+        function hideTooltip() {
+            const tooltip = document.getElementById('customTooltip');
+            if (tooltip) {
+                tooltip.style.display = 'none';
+            }
+        }
+        
+        // Configurações do gráfico
+        const config = {
+            responsive: true,
+            maintainAspectRatio: false,
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Número de Colaboradores',
+                    data: data,
+                    backgroundColor: backgroundColors,
+                    borderColor: backgroundColors.map(color => color.replace('0.8', '1')), // Borda mais opaca
+                    borderWidth: 1,
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        color: '#000',
+                        font: {
+                            weight: 'bold',
+                            size: 12
+                        },
+                        formatter: function(value) {
+                            return value > 0 ? value : ''; // Só mostra o valor se for maior que zero
+                        }
+                    },
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    duration: 1500,
+                    easing: 'easeInOutQuart'
+                },
+                layout: {
+                    padding: {
+                        top: 20,
+                        right: 20,
+                        bottom: 10,
+                        left: 20
+                    }
+                },
+                scales: {
+                    y: {
+                        display: false, // Remove os números do eixo Y
+                        grid: {
+                            display: false
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#6c757d',
+                            font: {
+                                size: 12,
+                                weight: '500'
+                            }
+                        }
+                    }
+                },
+                interaction: {
+                    mode: 'index',
+                    intersect: true
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: true,
+                        mode: 'index',
+                        intersect: true,
+                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                        titleFont: {
+                            size: 13,
+                            weight: '600',
+                            family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+                        },
+                        bodyFont: {
+                            size: 13,
+                            weight: 'normal',
+                            family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+                        },
+                        padding: 10,
+                        displayColors: false,
+                        cornerRadius: 4,
+                        borderColor: 'rgba(255, 255, 255, 0.2)',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.dataset.label || '';
+                                const value = context.parsed.y;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                return [
+                                    `${value} colaborador${value !== 1 ? 'es' : ''}`,
+                                    total > 0 ? `(${percentage}% do total)` : ''
+                                ].filter(Boolean);
+                            },
+                            title: function(tooltipItems) {
+                                return tooltipItems[0].label;
+                            },
+                            labelTextColor: function() {
+                                return '#ffffff';
+                            }
+                        },
+                        position: 'nearest',
+                        yAlign: 'bottom',
+                        xAlign: 'center',
+                        caretSize: 6,
+                        caretPadding: 5,
+                        boxPadding: 6,
+                        bodySpacing: 5,
+                        titleSpacing: 5
+                    }
+                }
+            }
+        };
+        
+        // Criar o gráfico
+        let phaseChart;
+        try {
+            phaseChart = new Chart(ctx, config);
+            
+            // Verificar se o gráfico foi criado corretamente
+            if (!phaseChart) {
+                throw new Error('Falha ao criar o gráfico');
+            }
+            
+            // Configurar eventos do mouse
+            function setupChartEvents() {
+                // Adicionar evento de mouseover para o tooltip
+                canvasElement.addEventListener('mousemove', function(evt) {
+                    const points = phaseChart.getElementsAtEventForMode(
+                        evt,
+                        'nearest',
+                        { intersect: true },
+                        false
+                    );
+                    
+                    if (points.length > 0) {
+                        const point = points[0];
+                        const label = phaseChart.data.labels[point.index];
+                        const value = phaseChart.data.datasets[point.datasetIndex].data[point.index];
+                        const total = phaseChart.data.datasets[point.datasetIndex].data.reduce((a, b) => a + b, 0);
+                        const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                        
+                        // Mostrar tooltip personalizado
+                        const rect = canvasElement.getBoundingClientRect();
+                        showTooltip(
+                            evt.clientX - rect.left,
+                            evt.clientY - rect.top,
+                            `${label}: ${value} colaborador${value !== 1 ? 'es' : ''} (${percentage}% do total)`
+                        );
+                    } else {
+                        hideTooltip();
+                    }
+                });
+                
+                canvasElement.addEventListener('mouseout', hideTooltip);
+                canvasElement.style.cursor = 'pointer';
+            }
+            
+            // Adicionar plugin para exibir os valores nas barras
+            Chart.register({
+                id: 'datalabels',
+                afterDatasetsDraw(chart, args, options) {
+                    const {ctx, chartArea: {top, bottom, left, right, width, height}, scales: {x, y}} = chart;
+                    
+                    chart.data.datasets.forEach((dataset, i) => {
+                        const meta = chart.getDatasetMeta(i);
+                        meta.data.forEach((bar, index) => {
+                            const data = dataset.data[index];
+                            if (data > 0) { // Só mostra o valor se for maior que zero
+                                ctx.fillStyle = '#000';
+                                const fontSize = 12;
+                                const fontStyle = 'bold';
+                                const fontFamily = 'Arial';
+                                ctx.font = `${fontStyle} ${fontSize}px ${fontFamily}`;
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'bottom';
+                                
+                                const x = bar.x;
+                                const y = bar.y - 5; // Ajuste para posicionar o texto acima da barra
+                                
+                                // Adiciona fundo branco atrás do texto para melhor legibilidade
+                                const text = data.toString();
+                                const textWidth = ctx.measureText(text).width;
+                                const padding = 4;
+                                
+                                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                                ctx.fillRect(
+                                    x - textWidth/2 - padding, 
+                                    y - fontSize - padding/2, 
+                                    textWidth + padding*2, 
+                                    fontSize + padding
+                                );
+                                
+                                // Desenha o texto
+                                ctx.fillStyle = '#000';
+                                ctx.fillText(text, x, y);
+                            }
+                        });
+                    });
+                }
+            });
+            
+            // Configurar eventos após um pequeno atraso para garantir que o gráfico esteja pronto
+            setTimeout(setupChartEvents, 100);
+            
+        } catch (error) {
+            console.error('Erro ao criar o gráfico:', error);
+            document.getElementById('phaseChart').style.display = 'none';
+            const errorDiv = document.getElementById('chartError');
+            errorDiv.classList.remove('d-none');
+            errorDiv.textContent = 'Erro ao carregar o gráfico. ' + error.message;
+            return;
+        }
+        
+        // Desabilitar atualizações automáticas
+        Object.freeze(phaseChart);
+    } else {
+        console.error('Chart.js não foi carregado corretamente.');
+        document.getElementById('chartError').classList.remove('d-none');
+        canvas.style.display = 'none';
+    }
+});
+</script>
+
+<style>
+.card {
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.list-group-item {
+    border-left: none;
+    border-right: none;
+}
+
+.list-group-item:first-child {
+    border-top: none;
+}
+
+.list-group-item:last-child {
+    border-bottom: none;
+}
+
+.badge {
+    font-size: 0.9em;
+}
+</style>
+{% endblock %}

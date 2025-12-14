@@ -1,0 +1,947 @@
+{% extends "base.html" %}
+
+{% block header %}
+    <div class="text-center mb-3">
+        <h4 class="mb-1">Fotografia Fibra FTTx</h4>
+        {% if ultima_atualizacao %}
+        <div class="text-muted" style="font-size: 0.9rem;">
+            <i class="bi bi-clock-history me-1"></i>
+            Última atualização: {{ ultima_atualizacao.strftime('%d/%m/%Y %H:%M') }}
+        </div>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block content %}
+{% set today = now().date() %}
+{% set datas_passadas = {} %}
+{% set datas_futuras = {} %}
+
+{# Separar datas em passadas e futuras #}
+{% for data_str, tipos in datas_tipos.items() %}
+    {% set data_parts = data_str.split('/') %}
+    {% if data_parts|length >= 3 %}
+        {% set data_dia = data_parts[0]|int %}
+        {% set data_mes = data_parts[1]|int %}
+        {% set data_ano = data_parts[2]|int %}
+        
+        {% if data_ano < today.year or (data_ano == today.year and data_mes < today.month) or (data_ano == today.year and data_mes == today.month and data_dia < today.day) %}
+            {% if datas_passadas.update({data_str: tipos}) %}{% endif %}
+        {% else %}
+            {% if datas_futuras.update({data_str: tipos}) %}{% endif %}
+        {% endif %}
+    {% else %}
+        {# Se não for possível processar a data, coloca na tabela de dados atuais #}
+        {% if datas_passadas.update({data_str: tipos}) %}{% endif %}
+    {% endif %}
+{% endfor %}
+
+{# Função para renderizar uma tabela #}
+{% macro render_table(datas_tabela, titulo, id_tabela, total_linhas, mostrar_contagem) %}
+<!-- DEBUG - Renderizando tabela: {{ titulo }} - Total: {{ total_linhas }} - Mostrar contagem: {{ mostrar_contagem }} -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white py-2">
+        <div class="d-flex flex-column">
+            <div class="d-flex align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-graph-up me-2"></i>{{ titulo }}
+                </h5>
+            </div>
+            {% if mostrar_contagem and total_linhas|int > 0 %}
+                <div class="mt-1">
+                    <span class="badge bg-primary text-white p-1" style="font-size: 0.75rem;">
+                        <i class="bi bi-people-fill me-1"></i> Total de Colaboradores: {{ total_linhas }}
+                    </span>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-3">
+        <div class="d-block w-100">
+            <div class="table-responsive">
+            <div class="table-container">
+                <table class="table table-bordered table-striped resizable-table" style="font-size: 0.6rem; margin: 0; width: auto !important; table-layout: auto;">
+                <thead>
+                    <tr class="table-light">
+                        <th rowspan="2" class="text-uppercase sticky-column" style="font-size: 0.8rem; font-weight: 600; vertical-align: middle; padding: 0.3rem 0.5rem; min-width: 120px; white-space: normal !important; word-wrap: break-word; position: sticky; left: 0; z-index: 10; background-color: #0d6efd !important; color: white !important;">Gerente Corporativo</th>
+                        {# Ordenar as datas em ordem decrescente (mais recente primeiro) #}
+{# Criar uma lista de tuplas (data_objeto, data_str, tipos_data) para ordenação #}
+{% set datas_para_ordenar = [] %}
+{% for data_str, tipos_data in datas_tabela.items() %}
+    {% set data_parts = data_str.split('/') %}
+    {% if data_parts|length == 3 %}
+        {% set data_objeto = (data_parts[2]|int, data_parts[1]|int, data_parts[0]|int) %}
+        {% set _ = datas_para_ordenar.append((data_objeto, data_str, tipos_data)) %}
+    {% else %}
+        {% set _ = datas_para_ordenar.append(((0, 0, 0), data_str, tipos_data)) %}
+    {% endif %}
+{% endfor %}
+
+{# Ordenar por data (ano, mês, dia) #}
+{% set datas_ordenadas = datas_para_ordenar|sort %}
+
+{# Extrair apenas as datas e tipos na ordem correta #}
+{% set datas_ordenadas = [] %}
+{% for item in datas_para_ordenar|sort %}
+    {% set _ = datas_ordenadas.append((item[1], item[2])) %}
+{% endfor %}
+{% for data, tipos_data in datas_ordenadas %}
+    {% for tipo in tipos_data %}
+        <th class="text-center bg-light text-dark">
+            <div style="font-size: 0.9rem; font-weight: 600; margin: 0.1rem 0;">{{ data }}</div>
+            {% if fases_por_data[data] %}
+                {% set fase = fases_por_data[data]|first %}
+                {% if 'Integração' in fase %}
+                    {% set fase_numero = 1 %}
+                {% elif 'Normativo' in fase %}
+                    {% set fase_numero = 2 %}
+                {% elif 'Técnico' in fase %}
+                    {% set fase_numero = 3 %}
+                {% elif 'Duplado' in fase %}
+                    {% set fase_numero = 4 %}
+                {% elif 'OPERAÇÃO' in fase or 'Operação' in fase %}
+                    {% set fase_numero = 5 %}
+                {% else %}
+                    {% set fase_numero = fase|length % 8 + 1 %}
+                {% endif %}
+                {% set badge_class = 'badge-fase-' ~ (fase_numero) %}
+                <div class="d-flex justify-content-center">
+                    <span class="badge {{ badge_class }}">{{ fase }}</span>
+                </div>
+            {% endif %}
+        </th>
+    {% endfor %}
+{% endfor %}
+                    </tr>
+                    <tr class="bg-white">
+                        {% for data, tipos_data in datas_ordenadas %}
+                            {% for tipo in tipos_data %}
+                            <th class="text-center" style="font-size: 0.7rem; padding: 0.3rem 0.2rem; white-space: normal; word-wrap: break-word; width: 100px; {% if 'STECH' in tipo %}background-color: #28a745 !important; color: white; font-weight: 500;{% endif %}">{{ tipo }}</th>
+                            {% endfor %}
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for gerente in gerentes %}
+                    <tr class="gerente-row" style="line-height: 1.2;" data-gerente="{{ gerente }}">
+                        <td class="sticky-column" style="padding: 0.3rem 0.5rem; text-align: left; white-space: normal !important; word-wrap: break-word; min-width: 120px; font-size: 0.8rem; position: sticky; left: 0; z-index: 5; background-color: white !important;">{{ gerente }}</td>
+                        {% for data, tipos_data in datas_ordenadas %}
+                            {% for tipo in tipos_data %}
+                            <td class="text-center" style="background-color: #ffffff !important; padding: 0.15rem 0.2rem; width: 100px;">
+                                {% if dados[gerente][data][tipo] is defined %}
+                                    {% set info = dados[gerente][data][tipo] %}
+                                    {{ info.quantidade }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    
+                    <!-- Linha de totais por data -->
+                    <tr class="table-active">
+                        <td class="sticky-column" style="position: sticky; left: 0; z-index: 5; background-color: #e9ecef !important;"><strong>Total</strong></td>
+                        {% for data, tipos_data in datas_ordenadas %}
+                            {% for tipo in tipos_data %}
+                                {% set total_tipo = namespace(value=0) %}
+                                {% for gerente in gerentes %}
+                                    {% if data in dados[gerente] and tipo in dados[gerente][data] %}
+                                        {% set total_tipo.value = total_tipo.value + dados[gerente][data][tipo].quantidade %}
+                                    {% endif %}
+                                {% endfor %}
+                                <td class="text-center fw-bold" style="background-color: #e9ecef;">
+                                    {% if total_tipo.value > 0 %}
+                                        {{ total_tipo.value }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        {% endfor %}
+                    </tr>
+                    <!-- Linha de Admissão -->
+                    <tr class="table-info" style="font-size: 0.7rem !important;">
+                        <td class="sticky-column" style="font-size: 0.7rem !important; position: sticky; left: 0; z-index: 5; background-color: #f8f9fa !important;"><strong>Admissão</strong></td>
+                        {% for data, tipos_data in datas_ordenadas %}
+                            {% for tipo in tipos_data %}
+                                {% if 'MOV. INTERNA' in tipo %}
+                                    <td class="small text-center" style="white-space: normal; padding: 0.25rem; font-size: 0.7rem !important; background-color: #f8f9fa; width: 100px;">
+                                        <span class="text-muted">-</span>
+                                    </td>
+                                {% else %}
+                                    <td class="small text-center" style="white-space: normal; padding: 0.25rem; font-size: 0.7rem !important; width: 100px;">
+                                        {% set contagem_datas = {}
+                                        %}
+                                        {% for gerente in gerentes %}
+                                            {% if data in dados[gerente] and tipo in dados[gerente][data] %}
+                                                {% for data_adm in dados[gerente][data][tipo].get('datas_admissao', []) %}
+                                                    {% if data_adm %}
+                                                        {% if data_adm in contagem_datas %}
+                                                            {% set _ = contagem_datas.update({data_adm: contagem_datas[data_adm] + 1}) %}
+                                                        {% else %}
+                                                            {% set _ = contagem_datas.update({data_adm: 1}) %}
+                                                        {% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        
+                                        {% if contagem_datas %}
+                                            {% for data_adm, quantidade in contagem_datas.items() %}
+                                                <div>{{ data_adm }}: {{ quantidade }}</div>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                {% endif %}
+                            {% endfor %}
+                        {% endfor %}
+                    </tr>
+                    <!-- Linha de Status do Curso (Aptos para a Operação = Não) -->
+                    <tr class="table-warning" style="font-size: 0.7rem !important;">
+                        <td class="sticky-column" style="font-size: 0.7rem !important; position: sticky; left: 0; z-index: 5; background-color: #fff3cd !important;"><strong>Não Aptos (Curso)</strong></td>
+                        {% for data, tipos_data in datas_ordenadas %}
+                            {% for tipo in tipos_data %}
+                                {% if 'MOV. INTERNA' in tipo %}
+                                    <td class="small text-center" style="white-space: normal; padding: 0.25rem; font-size: 0.7rem !important; background-color: #fff3cd; width: 100px;">
+                                        <span class="text-muted">-</span>
+                                    </td>
+                                {% else %}
+                                    <td class="small" style="white-space: normal; padding: 0.25rem; font-size: 0.7rem !important; background-color: #fff3cd; width: 100px; text-align: left !important;">
+                                        {% set nao_aptos = [] %}
+                                        
+                                        {% for gerente in gerentes %}
+                                            {% if data in dados[gerente] and tipo in dados[gerente][data] %}
+                                                {% for emp in dados[gerente][data][tipo].get('colaboradores', []) %}
+                                                    {% if emp.operation_ready and (emp.operation_ready.upper() == 'NÃO' or emp.operation_ready.upper() == 'NAO' or emp.operation_ready.upper() == 'N' or emp.operation_ready.upper() == 'NO') %}
+                                                        {% set _ = nao_aptos.append({
+                                                            'status': emp.course_status if emp.course_status else 'SEM STATUS'
+                                                        }) %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        
+                                        {% if nao_aptos %}
+                                            {% set contagem_por_status = {} %}
+                                            {% for item in nao_aptos %}
+                                                {% set status = item.status %}
+                                                {% if status not in contagem_por_status %}
+                                                    {% set _ = contagem_por_status.update({status: 1}) %}
+                                                {% else %}
+                                                    {% set _ = contagem_por_status.update({status: contagem_por_status[status] + 1}) %}
+                                                {% endif %}
+                                            {% endfor %}
+                                            
+                                            <div><strong>Total: {{ nao_aptos|length }}</strong></div>
+                                            <div style="font-size: 0.6rem; margin-top: 3px;">
+                                                {% for status, quantidade in contagem_por_status.items() %}
+                                                    <div>{{ status }}: {{ quantidade }}</div>
+                                                {% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                {% endif %}
+                            {% endfor %}
+                        {% endfor %}
+                    </tr>
+                </tbody>
+                </table>
+            </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{# Calcular totais diretamente dos dados #}
+{% set total_passados = 0 %}
+{% set total_futuros = 0 %}
+
+<!-- Primeiro, vamos verificar a estrutura de dados -->
+{% for gerente, gerente_data in dados.items() %}
+    {% for data_str, data_tipos in gerente_data.items() %}
+        <!-- Processando data: {{ data_str }} -->
+        {% set data_parts = data_str.split('/') %}
+        {% if data_parts|length >= 3 %}
+            {% set data_dia = data_parts[0]|int %}
+            {% set data_mes = data_parts[1]|int %}
+            {% set data_ano = data_parts[2]|int %}
+            
+            {% for tipo, info in data_tipos.items() %}
+                {% if info.quantidade is defined and info.quantidade > 0 %}
+                    {% set is_futuro = false %}
+                    {% if data_ano > today.year %}
+                        {% set is_futuro = true %}
+                    {% elif data_ano == today.year and data_mes > today.month %}
+                        {% set is_futuro = true %}
+                    {% elif data_ano == today.year and data_mes == today.month and data_dia >= today.day %}
+                        {% set is_futuro = true %}
+                    {% endif %}
+                    
+                    {% if is_futuro %}
+                        {% set total_futuros = total_futuros + info.quantidade %}
+                        <!-- Adicionando {{ info.quantidade }} para futuros ({{ data_dia }}/{{ data_mes }}/{{ data_ano }}) -->
+                    {% else %}
+                        {% set total_passados = total_passados + info.quantidade %}
+                        <!-- Adicionando {{ info.quantidade }} para passados ({{ data_dia }}/{{ data_mes }}/{{ data_ano }}) -->
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    {% endfor %}
+{% endfor %}
+
+<!-- 
+DEBUG - Informações:
+- Total futuros: {{ total_futuros }}
+- Total passados: {{ total_passados }}
+- Hoje: {{ today.day }}/{{ today.month }}/{{ today.year }}
+- Total de gerentes: {{ dados|length }}
+- Datas futuras: {{ datas_futuras|length }}
+- Datas passadas: {{ datas_passadas|length }}
+-->
+
+{# Calcular total de colaboradores futuros diretamente da tabela #}
+{# Cálculo do total de colaboradores futuros #}
+{% set total_futuros = namespace(value=0) %}
+{% for data in datas_futuras %}
+    {% for gerente_nome, gerente_dados in dados.items() %}
+        {% if data in gerente_dados %}
+            {% for tipo, info in gerente_dados[data].items() %}
+                {% if info.quantidade is defined and info.quantidade > 0 %}
+                    {% set total_futuros.value = total_futuros.value + info.quantidade %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    {% endfor %}
+{% endfor %}
+
+{# Renderização da tabela de futuros com o total calculado #}
+{# Renderizar tabela de datas futuras primeiro #}
+{% if datas_futuras|length > 0 %}
+    {{ render_table(datas_futuras, 'PRÓXIMAS ENTRADAS - OPERAÇÃO', 'tabela-futura', total_futuros.value, true) }}
+{% endif %}
+
+{# Agrupar datas passadas por mês/ano #}
+{% set meses_passados = {} %}
+{% for data_str in datas_passadas.keys() %}
+    {% set data_parts = data_str.split('/') %}
+    {% if data_parts|length >= 3 %}
+        {% set mes_ano = data_parts[1] ~ '/' ~ data_parts[2] %}
+        {% if mes_ano not in meses_passados %}
+            {% set _ = meses_passados.update({mes_ano: {}}) %}
+        {% endif %}
+        {% set _ = meses_passados[mes_ano].update({data_str: datas_passadas[data_str]}) %}
+    {% endif %}
+{% endfor %}
+
+{# Ordenar meses em ordem decrescente (do mais recente para o mais antigo) #}
+{% set meses_ordenados = [] %}
+{% for mes_ano in meses_passados.keys() %}
+    {% set mes_ano_parts = mes_ano.split('/') %}
+    {% if mes_ano_parts|length == 2 %}
+        {% set _ = meses_ordenados.append({
+            'mes': mes_ano_parts[0]|int, 
+            'ano': mes_ano_parts[1]|int, 
+            'chave': mes_ano
+        }) %}
+    {% endif %}
+{% endfor %}
+{# Ordenar primeiro por ano (decrescente) e depois por mês (decrescente) #}
+{% set meses_ordenados = meses_ordenados|sort(attribute='ano', reverse=true) %}
+{% set meses_ordenados = meses_ordenados|sort(attribute='mes', reverse=true) %}
+{# Extrair apenas as chaves ordenadas #}
+{% set meses_ordenados_chaves = [] %}
+{% for item in meses_ordenados %}
+    {% set _ = meses_ordenados_chaves.append(item.chave) %}
+{% endfor %}
+{% set meses_ordenados = meses_ordenados_chaves %}
+
+{# Renderizar uma tabela para cada mês #}
+{% for mes_ano in meses_ordenados %}
+    {% if mes_ano in meses_passados %}
+        {% set datas_do_mes = meses_passados[mes_ano] %}
+    {% set total_mes = namespace(value=0) %}
+    
+    {# Calcular total do mês #}
+    {% for data_str, dados_data in datas_do_mes.items() %}
+        {% for gerente_nome, gerente_dados in dados.items() %}
+            {% if data_str in gerente_dados %}
+                {% for tipo, info in gerente_dados[data_str].items() %}
+                    {% if info.quantidade is defined and info.quantidade > 0 %}
+                        {% set total_mes.value = total_mes.value + info.quantidade %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+    
+    {# Obter nome do mês #}
+    {% set mes_numero = mes_ano.split('/')[0]|int %}
+    {% set meses = {
+        1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+        5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+        9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+    } %}
+    {% set nome_mes = meses.get(mes_numero, mes_numero) %}
+    {% set ano = mes_ano.split('/')[1] %}
+    
+    {# Renderizar tabela do mês #}
+        {{ render_table(datas_do_mes, 'OPERAÇÃO - ' ~ nome_mes ~ ' ' ~ ano, 'tabela-mes-' ~ mes_ano, total_mes.value, true) }}
+    {% endif %}
+{% endfor %}
+
+<!-- 
+DEBUG - Contagem final:
+- Total de colaboradores futuros: {{ total_futuros }}
+- Total de datas futuras: {{ datas_futuras|length }}
+- Total de datas passadas: {{ datas_passadas|length }}
+- Data atual: {{ today.day }}/{{ today.month }}/{{ today.year }}
+- Estrutura de dados: {{ dados|tojson }}
+
+Dados das datas futuras:
+{% for data in datas_futuras %}
+- {{ data }}: 
+  {% for gerente, dados_gerente in dados.items() %}
+    {% if data in dados_gerente %}
+      {{ gerente }}: {{ dados_gerente[data]|tojson }}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+Soma manual dos totais:
+{% set soma_manual = 0 %}
+{% for data in datas_futuras %}
+  {% for gerente, dados_gerente in dados.items() %}
+    {% if data in dados_gerente %}
+      {% for tipo, info in dados_gerente[data].items() %}
+        {% if info.quantidade is defined %}
+          {% set soma_manual = soma_manual + info.quantidade %}
+          - {{ gerente }} - {{ data }} - {{ tipo }}: {{ info.quantidade }} (Subtotal: {{ soma_manual }})
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+- Soma manual final: {{ soma_manual }}
+-->
+
+<div class="d-grid gap-2 d-md-flex justify-content-md-end mt-3">
+    <a href="{{ url_for_brand('index', brand=brand) }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Voltar
+    </a>
+</div>
+
+<style>
+    /* Estilo para as tabelas */
+    .table-container {
+        position: relative;
+        overflow-x: auto;
+        width: 100%;
+    }
+    
+    .resizable-table {
+        width: auto !important;
+        min-width: 0 !important;
+        position: relative;
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin: 0;
+    }
+    
+    /* Espaçamento entre as tabelas */
+    .card.mb-4 {
+        margin-bottom: 2rem !important;
+    }
+    
+    /* Tooltip sutil */
+    .gerente-tooltip {
+        position: fixed;
+        display: none;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 3px;
+        font-size: 0.8rem;
+        z-index: 1000;
+        pointer-events: none;
+        white-space: nowrap;
+        max-width: 300px;
+        text-align: center;
+        transition: opacity 0.2s;
+    }
+    
+    /* Estilos da tabela */
+    .table-container {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0;
+        padding: 0;
+        display: block;
+    }
+    
+    .table {
+        margin-bottom: 0;
+        width: auto;
+        min-width: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+        background-color: #fff;
+        table-layout: auto;
+    }
+    
+    .table th,
+    .table td {
+        padding: 0.3rem 0.5rem;
+        vertical-align: middle;
+        border: 1px solid #e9ecef;
+        font-size: 0.8rem;
+    }
+    
+    .table thead th {
+        background-color: #e67e22 !important; /* Laranja mais escuro */
+        color: #ffffff !important; /* Texto branco */
+        border-bottom: 2px solid #d35400; /* Borda mais escura */
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Sombra sutil para dar profundidade */
+    }
+    
+    /* Primeira célula do cabeçalho */
+    .table thead th:first-child {
+        border-top-left-radius: 8px;
+    }
+    
+    /* Última célula do cabeçalho */
+    .table thead th:last-child {
+        border-top-right-radius: 8px;
+    }
+    
+    .table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .table-striped > tbody > tr:nth-of-type(odd) > * {
+        background-color: rgba(0, 0, 0, 0.02);
+    }
+    
+    /* Estilo para os valores numéricos */
+    .table td.text-center {
+        font-weight: 500;
+        color: #212529;
+    }
+    
+    /* Estilo para a linha de totais */
+    .table-active {
+        background-color: #f1f8ff !important;
+        font-weight: 600;
+    }
+    
+    .table-active td {
+        border-top: 2px solid #dee2e6;
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    /* Estilo para os badges */
+    .resizable-table th, 
+    .resizable-table td {
+        border: 1px solid #dee2e6;
+        padding: 0.2rem 0.3rem;
+        vertical-align: middle;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 120px;
+        min-width: 80px;
+    }
+    
+    .badge {
+        font-size: 0.65rem;
+        font-weight: 500;
+        padding: 0.25rem 0.4rem;
+        margin: 0.1rem;
+        white-space: nowrap;
+    }
+    
+    /* Cabeçalho do card */
+    .card-header {
+        background-color: #fff;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 1.25rem 1.5rem;
+    }
+    
+    .card-header h5 {
+        font-weight: 600;
+        color: #212529;
+        margin: 0;
+        display: flex;
+        align-items: center;
+    }
+    
+    /* Responsividade */
+    @media (max-width: 992px) {
+        .table th,
+        .table td {
+            padding: 0.5rem;
+            font-size: 0.85rem;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .table th,
+        .table td {
+            padding: 0.4rem;
+            font-size: 0.8rem;
+        }
+        
+        .badge {
+            font-size: 0.8em;
+            padding: 0.3em 0.5em;
+        }
+    }
+    
+    /* Melhorias visuais para os botões */
+    .btn {
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        transition: all 0.2s;
+    }
+    
+    .btn-secondary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
+    
+    .btn-secondary:hover {
+        background-color: #5a6268;
+        border-color: #545b62;
+    }
+    
+    /* Ajustes para o container da tabela */
+    .card-body {
+        padding: 1.5rem;
+    }
+    
+    /* Melhorias na legenda das fases */
+    .small {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .small .badge {
+        font-size: 0.75em;
+        margin-right: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    /* Ajuste para o título da tabela */
+    .text-uppercase {
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Melhorias no rodapé */
+    .card-footer {
+        background-color: #f8f9fa;
+        border-top: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 1rem 1.5rem;
+    }
+</style>
+
+<script>
+// Fechar dropdown ao clicar fora
+function closeOnClickOutside(element, callback) {
+    const outsideClickListener = function(event) {
+        if (!element.contains(event.target) && !event.target.matches('.dropdown-toggle')) {
+            callback();
+            removeClickListener();
+        }
+    };
+
+    const removeClickListener = function() {
+        document.removeEventListener('click', outsideClickListener);
+    };
+
+    document.addEventListener('click', outsideClickListener);
+    
+    // Retornar função para remover o listener quando não for mais necessário
+    return removeClickListener;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Função para redimensionar coluna
+    function initResizableColumns() {
+        const table = document.getElementById('resizableTable');
+        if (!table) return;
+        
+        const ths = table.querySelectorAll('th');
+        let isResizing = false;
+        let currentTh = null;
+        let startX = 0;
+        let startWidth = 0;
+        
+        ths.forEach(th => {
+            // Pular a primeira coluna (não redimensionável)
+            if (th === ths[0]) return;
+            
+            // Criar o elemento de redimensionamento
+            const resizer = document.createElement('div');
+            resizer.classList.add('resizable');
+            th.appendChild(resizer);
+            
+            // Adicionar evento de clique duplo para redefinir o tamanho
+            th.addEventListener('dblclick', function() {
+                th.style.width = '120px'; // Largura padrão
+            });
+            
+            // Configurar eventos de redimensionamento
+            resizer.addEventListener('mousedown', function(e) {
+                isResizing = true;
+                currentTh = th;
+                startX = e.clientX;
+                startWidth = th.offsetWidth;
+                document.body.style.cursor = 'col-resize';
+                th.style.userSelect = 'none';
+                th.style.cursor = 'col-resize';
+                
+                // Adicionar classe para feedback visual
+                th.classList.add('resizing');
+                
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+        
+        // Remover classe ao soltar o mouse
+        document.addEventListener('mouseup', function() {
+            if (isResizing) {
+                isResizing = false;
+                if (currentTh) {
+                    currentTh.classList.remove('resizing');
+                    currentTh = null;
+                }
+                document.body.style.cursor = '';
+            }
+        });
+        
+        // Atualizar largura durante o redimensionamento
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing || !currentTh) return;
+            
+            const width = startWidth + (e.clientX - startX);
+            if (width > 80) { // Largura mínima de 80px
+                currentTh.style.width = width + 'px';
+                
+                // Atualizar células correspondentes
+                const index = Array.from(ths).indexOf(currentTh);
+                const tds = table.querySelectorAll(`td:nth-child(${index + 1})`);
+                tds.forEach(td => {
+                    td.style.width = width + 'px';
+                });
+            }
+        });
+    }
+    
+    // Inicializar redimensionamento de colunas
+    initResizableColumns();
+    
+    // Função para redimensionar linhas
+    function initResizableRows() {
+        const table = document.getElementById('resizableTable');
+        if (!table) return;
+        
+        const trs = table.querySelectorAll('tr');
+        let isResizing = false;
+        let currentRow = null;
+        let startY = 0;
+        let startHeight = 0;
+        
+        trs.forEach(tr => {
+            // Criar o elemento de redimensionamento
+            const resizer = document.createElement('div');
+            resizer.classList.add('resizable-row');
+            tr.appendChild(resizer);
+            
+            // Adicionar evento de clique duplo para redefinir a altura
+            tr.addEventListener('dblclick', function() {
+                tr.style.height = ''; // Redefinir para altura automática
+            });
+            
+            // Configurar eventos de redimensionamento
+            resizer.addEventListener('mousedown', function(e) {
+                isResizing = true;
+                currentRow = tr;
+                startY = e.clientY;
+                startHeight = tr.offsetHeight;
+                document.body.style.cursor = 'row-resize';
+                tr.style.userSelect = 'none';
+                tr.classList.add('resizing');
+                
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+        
+        // Remover classe ao soltar o mouse
+        document.addEventListener('mouseup', function() {
+            if (isResizing) {
+                isResizing = false;
+                if (currentRow) {
+                    currentRow.classList.remove('resizing');
+                    currentRow = null;
+                }
+                document.body.style.cursor = '';
+            }
+        });
+        
+        // Atualizar altura durante o redimensionamento
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing || !currentRow) return;
+            
+            const height = startHeight + (e.clientY - startY);
+            if (height > 30) { // Altura mínima de 30px
+                currentRow.style.height = height + 'px';
+            }
+        });
+    }
+    
+    // Inicializar redimensionamento de linhas
+    initResizableRows();
+    
+    // Tooltip sutil ao clicar
+    const tooltip = document.createElement('div');
+    tooltip.className = 'gerente-tooltip';
+    document.body.appendChild(tooltip);
+    
+    // Variável para controlar o timeout
+    let tooltipTimeout;
+    
+    // Tooltip sutil ao clicar
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl, {
+            trigger: 'click',
+            placement: 'top',
+            container: 'body'
+        });
+    });
+
+    // Fechar dropdown de filtro ao clicar fora
+    document.querySelectorAll('.dropdown').forEach(function(dropdown) {
+        const toggle = dropdown.querySelector('.dropdown-toggle');
+        const menu = dropdown.querySelector('.dropdown-menu');
+        
+        if (toggle && menu) {
+            toggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                
+                // Fechar outros menus abertos
+                document.querySelectorAll('.dropdown-menu.show').forEach(function(openMenu) {
+                    if (openMenu !== menu) {
+                        openMenu.classList.remove('show');
+                    }
+                });
+                
+                // Alternar o menu atual
+                menu.classList.toggle('show');
+                
+                // Adicionar evento para fechar ao clicar fora
+                if (menu.classList.contains('show')) {
+                    const removeListener = closeOnClickOutside(dropdown, function() {
+                        menu.classList.remove('show');
+                    });
+                    
+                    // Remover o listener quando o menu for fechado
+                    const observer = new MutationObserver(function(mutations) {
+                        if (!menu.classList.contains('show')) {
+                            removeListener();
+                            observer.disconnect();
+                        }
+                    });
+                    
+                    observer.observe(menu, { attributes: true, attributeFilter: ['class'] });
+                }
+            });
+            
+            // Impedir que o clique no menu feche o dropdown
+            menu.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+    });
+    
+    // Fechar dropdown ao clicar no botão de aplicar
+    document.querySelectorAll('.apply-filter-btn, .clear-filter-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const dropdown = button.closest('.dropdown-menu');
+            if (dropdown) {
+                dropdown.classList.remove('show');
+            }
+        });
+    });
+
+    // Mostrar tooltip ao clicar na célula
+    document.querySelectorAll('.gerente-row td').forEach(cell => {
+        cell.style.cursor = 'pointer';
+        
+        cell.addEventListener('click', function(e) {
+            const gerente = this.closest('tr').getAttribute('data-gerente');
+            if (gerente) {
+                // Posiciona o tooltip próximo ao cursor
+                tooltip.textContent = gerente;
+                tooltip.style.display = 'block';
+                
+                // Posição fixa baseada na viewport
+                tooltip.style.position = 'fixed';
+                tooltip.style.left = (e.clientX + 10) + 'px';
+                tooltip.style.top = (e.clientY + 10) + 'px';
+                tooltip.style.opacity = '1';
+                
+                // Remove o tooltip após 2 segundos
+                clearTimeout(tooltipTimeout);
+                tooltipTimeout = setTimeout(() => {
+                    tooltip.style.opacity = '0';
+                    setTimeout(() => {
+                        tooltip.style.display = 'none';
+                    }, 200);
+                }, 2000);
+            }
+        });
+    });
+    
+    // Esconder tooltip ao clicar fora
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.gerente-row')) {
+            tooltip.style.opacity = '0';
+            setTimeout(() => {
+                tooltip.style.display = 'none';
+            }, 200);
+        }
+    });
+    
+    // Esconder tooltip ao rolar a página
+    window.addEventListener('scroll', function() {
+        if (tooltip.style.display === 'block') {
+            tooltip.style.opacity = '0';
+            setTimeout(() => {
+                tooltip.style.display = 'none';
+            }, 200);
+        }
+    });
+});
+</script>
+
+
+{% endblock %}
