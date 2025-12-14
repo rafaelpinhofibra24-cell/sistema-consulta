@@ -360,7 +360,7 @@ class Employee(db.Model):
     __table_args__ = (db.UniqueConstraint('registration', 'brand', name='uq_registration_brand'),)
 
     def get_current_phase(self):
-        # Corrigido erro de comparação datetime vs date - v2
+        # Corrigido erro de comparação datetime vs date - v3 - deploy completo
         today = datetime.now().date()
         
         # Função helper para garantir que as datas sejam do tipo date (não datetime)
