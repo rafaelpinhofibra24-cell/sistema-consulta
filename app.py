@@ -370,58 +370,86 @@ class Employee(db.Model):
                 return dt.date()
             return dt
         
-        phases = {
-            'Integração': (to_date(self.integration_start), to_date(self.integration_end)),
-            'Normativo': (to_date(self.normative_start), to_date(self.normative_end)),
-            'Curso Técnico': (to_date(self.technical_course_start), to_date(self.technical_course_end)),
-            'Duplado': (to_date(self.double_start), to_date(self.double_end))
-        }
-
+        # Converter TODAS as datas relevantes para date antes de qualquer comparação
+        integration_start = to_date(self.integration_start)
+        integration_end = to_date(self.integration_end)
+        normative_start = to_date(self.normative_start)
+        normative_end = to_date(self.normative_end)
+        technical_course_start = to_date(self.technical_course_start)
+        technical_course_end = to_date(self.technical_course_end)
+        double_start = to_date(self.double_start)
+        double_end = to_date(self.double_end)
+        loading_date = to_date(self.loading_date)
+        field_op_date = to_date(self.field_operation_date)
+        
         # Log detalhado para depuração
         print(f"[LOG FASE] Matrícula: {self.registration} | Nome: {self.full_name}")
-        print(f"[LOG FASE] Datas: Integração=({self.integration_start}, {self.integration_end}), Normativo=({self.normative_start}, {self.normative_end}), Técnico=({self.technical_course_start}, {self.technical_course_end}), Duplado=({self.double_start}, {self.double_end})")
-        print(f"[LOG FASE] Data Carregamento: {self.loading_date} | Data Operação Campo: {self.field_operation_date}")
+        print(f"[LOG FASE] Datas: Integração=({integration_start}, {integration_end}), Normativo=({normative_start}, {normative_end}), Técnico=({technical_course_start}, {technical_course_end}), Duplado=({double_start}, {double_end})")
+        print(f"[LOG FASE] Data Carregamento: {loading_date} | Data Operação Campo: {field_op_date}")
         print(f"[LOG FASE] Status do Curso: {self.course_status} | Operation Ready: {self.operation_ready}")
         print(f"[LOG FASE] Data atual: {today}")
 
         # 1. Verificar se está em alguma fase ativa
-        for phase, (start, end) in phases.items():
-            if start and end and start <= today <= end:
-                print(f"[LOG FASE] Fase ativa detectada: {phase}")
-                print(f"[LOG FASE] Fase retornada: {phase}\n")
-                return phase
+        if integration_start and integration_end and integration_start <= today <= integration_end:
+            print(f"[LOG FASE] Fase ativa detectada: Integração")
+            print(f"[LOG FASE] Fase retornada: Integração\n")
+            return 'Integração'
+            
+        if normative_start and normative_end and normative_start <= today <= normative_end:
+            print(f"[LOG FASE] Fase ativa detectada: Normativo")
+            print(f"[LOG FASE] Fase retornada: Normativo\n")
+            return 'Normativo'
+            
+        if technical_course_start and technical_course_end and technical_course_start <= today <= technical_course_end:
+            print(f"[LOG FASE] Fase ativa detectada: Curso Técnico")
+            print(f"[LOG FASE] Fase retornada: Curso Técnico\n")
+            return 'Curso Técnico'
+            
+        if double_start and double_end and double_start <= today <= double_end:
+            print(f"[LOG FASE] Fase ativa detectada: Duplado")
+            print(f"[LOG FASE] Fase retornada: Duplado\n")
+            return 'Duplado'
 
         # 2. Verificar condições especiais (Operação e Carregamento)
-        if (self.field_operation_date and today >= self.field_operation_date and 
+        if (field_op_date and today >= field_op_date and 
             self.course_status and ('concluído' in self.course_status.lower() or 'concluido' in self.course_status.lower())):
-            if not self.loading_date or (self.loading_date and self.field_operation_date >= self.loading_date):
+            if not loading_date or (loading_date and field_op_date >= loading_date):
                 print(f"[LOG FASE] Fase especial: Operação")
                 print(f"[LOG FASE] Fase retornada: Operação\n")
                 return 'Operação'
             else:
                 print(f"[LOG FASE] Condição não atendida para Operação: field_operation_date < loading_date")
 
-        if self.loading_date and today >= self.loading_date:
-            if self.double_end and self.loading_date >= self.double_end:
+        if loading_date and today >= loading_date:
+            if double_end and loading_date >= double_end:
                 print(f"[LOG FASE] Fase especial: Carregamento")
                 print(f"[LOG FASE] Fase retornada: Carregamento\n")
                 return 'Carregamento'
 
         # 3. Verificar se todas as fases estão no futuro
-        all_phases_in_future = all(
-            (not start or start > today) and (not end or end > today)
-            for start, end in phases.values()
+        all_phases_in_future = (
+            (not integration_start or integration_start > today) and (not integration_end or integration_end > today) and
+            (not normative_start or normative_start > today) and (not normative_end or normative_end > today) and
+            (not technical_course_start or technical_course_start > today) and (not technical_course_end or technical_course_end > today) and
+            (not double_start or double_start > today) and (not double_end or double_end > today)
         )
-        if all_phases_in_future and any(start and end for start, end in phases.values()):
+        has_any_phase = (
+            (integration_start and integration_end) or
+            (normative_start and normative_end) or
+            (technical_course_start and technical_course_end) or
+            (double_start and double_end)
+        )
+        if all_phases_in_future and has_any_phase:
             print("[LOG FASE] Todas as fases estão no futuro, retornando 'Previsto'")
             print(f"[LOG FASE] Fase retornada: Previsto\n")
             return 'Previsto'
 
         # 4. Verificar se há alguma fase futura
-        has_future_phase = any(
-            start and start > today 
-            for start, end in phases.values() 
-            if start
+        has_future_phase = (
+            (integration_start and integration_start > today) or
+            (normative_start and normative_start > today) or
+            (technical_course_start and technical_course_start > today) or
+            (double_start and double_start > today)
         )
         if has_future_phase:
             print("[LOG FASE] Há fases futuras, retornando 'Previsto'")
@@ -1631,9 +1659,16 @@ def dashboard_fases():
             employees_by_phase[phase].append(employee)
     
     # Ordenar colaboradores por data de operação de campo (mais recente primeiro)
+    def to_date(dt):
+        if dt is None:
+            return None
+        if isinstance(dt, datetime):
+            return dt.date()
+        return dt
+    
     for phase in employees_by_phase:
         employees_by_phase[phase].sort(
-            key=lambda x: x.field_operation_date if x.field_operation_date else datetime.min.date(),
+            key=lambda x: to_date(x.field_operation_date) if x.field_operation_date else datetime.min.date(),
             reverse=True
         )
     

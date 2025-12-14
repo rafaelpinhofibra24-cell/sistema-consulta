@@ -1,0 +1,33 @@
+app = "nome-da-sua-app"
+kill_signal = "SIGINT"
+kill_timeout = 5
+processes = []
+
+[build]
+  # Usando Dockerfile do repositório
+  image = ""
+
+[env]
+  PORT = "8000"
+
+[deploy]
+  release_command = ""
+
+[experimental]
+  allowed_public_ports = [8000]
+  auto_rollback = true
+
+[services]
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 443
+
+  [[services.tcp_checks]]
+    grace_period = "1s"
+    interval = "15s"
+    port = 8000
+    timeout = "2s"
