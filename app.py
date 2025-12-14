@@ -361,11 +361,20 @@ class Employee(db.Model):
 
     def get_current_phase(self):
         today = datetime.now().date()
+        
+        # Função helper para garantir que as datas sejam do tipo date (não datetime)
+        def to_date(dt):
+            if dt is None:
+                return None
+            if isinstance(dt, datetime):
+                return dt.date()
+            return dt
+        
         phases = {
-            'Integração': (self.integration_start, self.integration_end),
-            'Normativo': (self.normative_start, self.normative_end),
-            'Curso Técnico': (self.technical_course_start, self.technical_course_end),
-            'Duplado': (self.double_start, self.double_end)
+            'Integração': (to_date(self.integration_start), to_date(self.integration_end)),
+            'Normativo': (to_date(self.normative_start), to_date(self.normative_end)),
+            'Curso Técnico': (to_date(self.technical_course_start), to_date(self.technical_course_end)),
+            'Duplado': (to_date(self.double_start), to_date(self.double_end))
         }
 
         # Log detalhado para depuração
